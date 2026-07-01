@@ -77,7 +77,7 @@
                 <!-- Moodboard items rendered here -->
             </div>
             <div class="p-4 border-t border-gray-100 bg-white">
-                <button id="exportBtn" disabled class="w-full py-2.5 rounded-md text-sm font-medium transition-colors bg-gray-100 text-gray-400 cursor-not-allowed">
+                <button id="exportBtn" onclick="window.handleExport()" disabled class="w-full py-2.5 rounded-md text-sm font-medium transition-colors bg-gray-100 text-gray-400 cursor-not-allowed">
                     匯出排版資源
                 </button>
             </div>
@@ -614,6 +614,24 @@
 
         window.executeConfirmAction = () => {
             if (state.confirmDialog.action) state.confirmDialog.action();
+        };
+
+        // 匯出排版資源邏輯 (新增)
+        window.handleExport = () => {
+            if (state.moodBoard.length === 0) return;
+            
+            state.confirmDialog = {
+                isOpen: true,
+                message: `確定要將這 ${state.moodBoard.length} 張素材打包匯出嗎？\n\n(此為模擬功能，實務上這裡會觸發下載 ZIP 壓縮檔，或直接透過 API 將圖片匯入 InDesign 等排版軟體)`,
+                action: () => {
+                    // 模擬匯出後清空企劃板
+                    state.moodBoard = [];
+                    window.closeConfirmDialog();
+                    updateGallery();
+                    updateMoodBoard();
+                }
+            };
+            updateModals();
         };
 
         // 匯入範例
