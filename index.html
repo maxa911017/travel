@@ -181,7 +181,7 @@
             if (pwd === EXPECTED_PWD) {
                 localStorage.removeItem('travelLensAttempts');
                 localStorage.removeItem('travelLensLockout');
-                sessionStorage.setItem('travelLensAuth', 'true');
+                // 已移除 sessionStorage，所以重新整理一定會需要再次登入
                 
                 document.getElementById('login-screen').classList.add('hidden');
                 document.getElementById('app').classList.remove('hidden');
@@ -467,21 +467,30 @@
                                         </div>
                                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                             <div>
-                                                <label class="text-[10px] uppercase font-bold text-gray-400 mb-1.5 flex items-center gap-1"><i data-lucide="bookmark" class="w-2.5 h-2.5"></i> 內容</label>
+                                                <div class="flex items-center justify-between mb-1.5">
+                                                    <label class="text-[10px] uppercase font-bold text-gray-400 flex items-center gap-1"><i data-lucide="bookmark" class="w-2.5 h-2.5"></i> 內容</label>
+                                                    <button onclick="window.openAddTagModal('content')" class="text-blue-400 hover:text-blue-600 bg-blue-50 hover:bg-blue-100 p-1 rounded-full transition-colors" title="新增標籤"><i data-lucide="plus" class="w-2.5 h-2.5"></i></button>
+                                                </div>
                                                 <select onchange="window.updateBatchItem('${item.id}', 'content', this.value)" ${state.batchStatus === 'analyzing' || state.batchStatus === 'saving' ? 'disabled' : ''} class="w-full text-xs border border-gray-200 rounded p-2 md:p-1.5 focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-gray-50">
                                                     <option value="" disabled ${!item.suggestions.content ? 'selected' : ''}>請選擇</option>
                                                     ${state.categories.content.map(c => `<option value="${c}" ${item.suggestions.content === c ? 'selected' : ''}>${c}</option>`).join('')}
                                                 </select>
                                             </div>
                                             <div>
-                                                <label class="text-[10px] uppercase font-bold text-gray-400 mb-1.5 flex items-center gap-1"><i data-lucide="layout-template" class="w-2.5 h-2.5"></i> 設計</label>
+                                                <div class="flex items-center justify-between mb-1.5">
+                                                    <label class="text-[10px] uppercase font-bold text-gray-400 flex items-center gap-1"><i data-lucide="layout-template" class="w-2.5 h-2.5"></i> 設計</label>
+                                                    <button onclick="window.openAddTagModal('design')" class="text-purple-400 hover:text-purple-600 bg-purple-50 hover:bg-purple-100 p-1 rounded-full transition-colors" title="新增標籤"><i data-lucide="plus" class="w-2.5 h-2.5"></i></button>
+                                                </div>
                                                 <select onchange="window.updateBatchItem('${item.id}', 'design', this.value)" ${state.batchStatus === 'analyzing' || state.batchStatus === 'saving' ? 'disabled' : ''} class="w-full text-xs border border-gray-200 rounded p-2 md:p-1.5 focus:ring-1 focus:ring-purple-500 outline-none disabled:bg-gray-50">
                                                     <option value="" disabled ${!item.suggestions.design ? 'selected' : ''}>請選擇</option>
                                                     ${state.categories.design.map(c => `<option value="${c}" ${item.suggestions.design === c ? 'selected' : ''}>${c}</option>`).join('')}
                                                 </select>
                                             </div>
                                             <div>
-                                                <label class="text-[10px] uppercase font-bold text-gray-400 mb-1.5 flex items-center gap-1"><i data-lucide="map-pin" class="w-2.5 h-2.5"></i> 地點</label>
+                                                <div class="flex items-center justify-between mb-1.5">
+                                                    <label class="text-[10px] uppercase font-bold text-gray-400 flex items-center gap-1"><i data-lucide="map-pin" class="w-2.5 h-2.5"></i> 地點</label>
+                                                    <button onclick="window.openAddTagModal('location')" class="text-green-400 hover:text-green-600 bg-green-50 hover:bg-green-100 p-1 rounded-full transition-colors" title="新增標籤"><i data-lucide="plus" class="w-2.5 h-2.5"></i></button>
+                                                </div>
                                                 <select onchange="window.updateBatchItem('${item.id}', 'location', this.value)" ${state.batchStatus === 'analyzing' || state.batchStatus === 'saving' ? 'disabled' : ''} class="w-full text-xs border border-gray-200 rounded p-2 md:p-1.5 focus:ring-1 focus:ring-green-500 outline-none disabled:bg-gray-50">
                                                     <option value="" disabled ${!item.suggestions.location ? 'selected' : ''}>請選擇</option>
                                                     ${state.categories.location.map(c => `<option value="${c}" ${item.suggestions.location === c ? 'selected' : ''}>${c}</option>`).join('')}
@@ -504,26 +513,29 @@
                 </div>`;
             }
 
-            // 新增標籤 Modal
+            // 新增標籤 Modal (修改 z-index 為 z-[110] 確保覆蓋在批量上傳面板之上)
             if (state.tagModal.isOpen) {
                 html += `
-                <div class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/40 backdrop-blur-sm px-4">
-                    <div class="bg-white rounded-lg p-6 w-full max-w-sm shadow-xl transform transition-all animate-fadeIn">
-                        <h3 class="font-bold text-gray-900 mb-4">新增自訂標籤</h3>
+                <div class="fixed inset-0 z-[110] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm px-4">
+                    <div class="bg-white rounded-lg p-6 w-full max-w-sm shadow-2xl transform transition-all animate-fadeIn">
+                        <h3 class="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                            <div class="bg-blue-100 text-blue-600 p-1.5 rounded-md"><i data-lucide="plus" class="w-4 h-4"></i></div>
+                            新增自訂標籤
+                        </h3>
                         <input type="text" id="newTagInput" value="${state.newTagValue}" oninput="window.updateNewTagValue(this.value)" onkeydown="if(event.key === 'Enter') window.confirmAddTag()" placeholder="請輸入標籤名稱..." class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-2" />
                         ${state.tagModal.error ? `<p class="text-red-500 text-xs mb-4">${state.tagModal.error}</p>` : ''}
                         <div class="flex justify-end gap-2 mt-4">
                             <button onclick="window.closeTagModal()" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors">取消</button>
-                            <button onclick="window.confirmAddTag()" class="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">確定</button>
+                            <button onclick="window.confirmAddTag()" class="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors shadow-sm">確定新增</button>
                         </div>
                     </div>
                 </div>`;
             }
 
-            // 確認操作 Modal
+            // 確認操作 Modal (修改 z-index 為 z-[120])
             if (state.confirmDialog.isOpen) {
                 html += `
-                <div class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/40 backdrop-blur-sm px-4">
+                <div class="fixed inset-0 z-[120] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm px-4">
                     <div class="bg-white rounded-lg p-6 w-full max-w-sm shadow-xl transform transition-all animate-fadeIn">
                         <h3 class="font-bold text-gray-900 mb-2">確認操作</h3>
                         <p class="text-gray-600 text-sm mb-6">${state.confirmDialog.message}</p>
@@ -862,13 +874,8 @@
         };
 
         lucide.createIcons(); 
-        
-        if (sessionStorage.getItem('travelLensAuth') === 'true') {
-            document.getElementById('login-screen').classList.add('hidden');
-            document.getElementById('app').classList.remove('hidden');
-            initApp();
-        }
 
+        // 已移除自動從 sessionStorage 讀取通關的設計，所以每次重新整理皆必須重新登入！
     </script>
 </body>
 </html>
