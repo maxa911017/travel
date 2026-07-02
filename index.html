@@ -25,7 +25,26 @@
 </head>
 <body class="bg-gray-50 font-sans text-gray-800 overflow-hidden">
 
-    <div class="flex h-screen relative" id="app">
+    <!-- === 系統登入護城河 === -->
+    <div id="login-screen" class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 backdrop-blur-md transition-opacity duration-300">
+        <div class="bg-white rounded-2xl p-8 w-96 shadow-2xl transform transition-all animate-fadeIn text-center">
+            <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
+                <i data-lucide="lock" class="w-8 h-8"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-900 mb-2">TravelLens</h2>
+            <p class="text-sm text-gray-500 mb-6">請輸入密碼進入資產系統</p>
+            <form onsubmit="window.handleLogin(event)">
+                <input type="password" id="password-input" placeholder="請輸入密碼..." class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-3 transition-all text-center tracking-widest" autofocus />
+                <p id="login-error" class="text-red-500 text-xs mb-4 hidden">密碼錯誤，請再試一次</p>
+                <button type="submit" class="w-full bg-blue-600 text-white rounded-lg px-4 py-3 font-medium hover:bg-blue-700 transition-colors shadow-md">
+                    進入系統
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 加上 hidden 隱藏主應用，等登入後再顯示 -->
+    <div class="flex h-screen relative hidden" id="app">
         <!-- 1. 左側過濾面板 -->
         <aside class="w-64 bg-white border-r border-gray-200 flex flex-col h-full shrink-0 z-10">
             <div class="p-5 border-b border-gray-100">
@@ -141,6 +160,27 @@
 
         let unsubTags = null;
         let unsubPhotos = null;
+
+        // === 密碼登入邏輯 ===
+        window.handleLogin = (e) => {
+            e.preventDefault();
+            const pwd = document.getElementById('password-input').value;
+            if (pwd === 'travel') {
+                // 登入成功：記錄狀態、切換畫面並初始化系統
+                sessionStorage.setItem('travelLensAuth', 'true');
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('app').classList.remove('hidden');
+                
+                // 啟動系統連線
+                initApp();
+                updateUI();
+            } else {
+                // 密碼錯誤：顯示錯誤訊息並清空輸入框
+                document.getElementById('login-error').classList.remove('hidden');
+                document.getElementById('password-input').value = '';
+                document.getElementById('password-input').focus();
+            }
+        };
 
         // === 3. 雙重防護連線 (嘗試匿名登入 -> 降級本機 ID) ===
         async function initApp() {
@@ -834,9 +874,16 @@
             }
         };
 
-        // 執行初始載入
-        initApp();
-        updateUI();
+        // 執行初始載入 (加入密碼鎖檢查)
+        lucide.createIcons(); // 先繪製登入畫面的 icon 圖示
+        
+        // 如果這個瀏覽器分頁已經登入過，就直接進入系統
+        if (sessionStorage.getItem('travelLensAuth') === 'true') {
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('app').classList.remove('hidden');
+            initApp();
+            updateUI();
+        }
 
     </script>
 </body>
