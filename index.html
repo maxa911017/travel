@@ -53,9 +53,8 @@
                 </div>
                 <div class="flex items-center gap-4">
                     <button onclick="window.clearFilters()" class="text-sm text-gray-500 hover:text-gray-800 transition-colors">清除條件</button>
-                    <!-- 隱藏的檔案上傳元素 -->
                     <input type="file" accept="image/*" multiple class="hidden" id="fileInput" onchange="window.handleBatchUpload(event)" />
-                    <button id="uploadBtn" onclick="document.getElementById('fileInput').click()" disabled class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-sm">
+                    <button id="uploadBtn" onclick="document.getElementById('fileInput').click()" disabled class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-sm">
                         <i data-lucide="layers" class="w-4 h-4"></i> 批量上傳與分析
                     </button>
                 </div>
@@ -79,41 +78,25 @@
             </div>
             <div class="p-4 border-t border-gray-100 bg-white">
                 <button id="exportBtn" onclick="window.handleExport()" disabled class="w-full py-2.5 rounded-md text-sm font-medium transition-colors bg-gray-100 text-gray-400 cursor-not-allowed">
-                    <i data-lucide="download" class="w-4 h-4 inline-block mr-1"></i> 匯出排版資源
+                    匯出排版資源
                 </button>
             </div>
         </aside>
     </div>
 
-    <!-- 靜態的 Tag Modal (避免重繪導致失焦) -->
-    <div id="tag-modal-overlay" class="fixed inset-0 z-[60] hidden items-center justify-center bg-gray-900/40 backdrop-blur-sm">
-        <div class="bg-white rounded-lg p-6 w-80 shadow-xl transform transition-all animate-fadeIn">
-            <h3 class="font-bold text-gray-900 mb-4">新增自訂標籤</h3>
-            <input type="text" id="newTagInput" onkeydown="if(event.key === 'Enter') window.confirmAddTag()" placeholder="請輸入標籤名稱..." class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-2" />
-            <p id="tag-modal-error" class="text-red-500 text-xs mb-4 hidden"></p>
-            <div class="flex justify-end gap-2 mt-2">
-                <button type="button" onclick="window.closeTagModal()" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors">取消</button>
-                <button type="button" onclick="window.confirmAddTag()" class="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">確定</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 其他動態 Modals (Batch Upload, Confirm Delete) -->
+    <!-- Modals Container -->
     <div id="modals-container"></div>
 
     <!-- 系統邏輯腳本 -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
         import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, setDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
         // === 1. 初始化 Firebase ===
-        // ⚠️ 警告：請務必將下方的 apiKey 換成你「重新申請」的那一把！
-        // 舊的 "AIzaSyDhAILsfNhhf-WdeJa-utgz_PVy6zARVHA" 已經被 Google 封鎖，繼續用只會報錯。
         const firebaseConfig = typeof __firebase_config !== 'undefined' && __firebase_config ? JSON.parse(__firebase_config) : {
-            apiKey: "請填寫你新申請的_API_KEY", 
+            apiKey: "AIzaSyDhAILsfNhhf-WdeJa-utgz_PVy6zARVHA",
             authDomain: "photo-e8d53.firebaseapp.com",
-            databaseURL: "https://photo-e8d53-default-rtdb.firebaseio.com",
             projectId: "photo-e8d53",
             storageBucket: "photo-e8d53.firebasestorage.app",
             messagingSenderId: "265524311162",
@@ -140,7 +123,7 @@
             categories: {
                 content: ['景點與娛樂', '餐飲與美食', '住宿與交通', '自然與人文'],
                 design: ['主視覺 (大圖)', '情境氛圍', '質感特寫'],
-                location: ['台灣新竹', '台灣台南', '台灣台北', '台灣花蓮', '台灣墾丁', '未定位', '台灣桃園']
+                location: ['日本東京', '日本北海道', '法國巴黎', '台灣花蓮', '台灣墾丁', '未定位']
             },
             searchQuery: '',
             filters: { content: [], design: [], location: [] },
@@ -157,111 +140,80 @@
         let unsubTags = null;
         let unsubPhotos = null;
 
-        // === 3. Firebase 認證與資料庫監聽 ===
+        // === 3. 雙重防護連線 (嘗試匿名登入 -> 降級本機 ID) ===
         async function initApp() {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token && typeof __firebase_config !== 'undefined' && __firebase_config) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (authError) {
-                console.error("Auth Error:", authError);
-                
-                let errorMessage = authError.message;
-                if (authError.code === 'auth/api-key-not-valid') {
-                    errorMessage = `
-                        <strong>你的 API 金鑰已被 Google 註銷作廢！</strong><br/><br/>
-                        請前往 <strong>Google Cloud Console ➔ APIs & Services ➔ Credentials</strong> 產生一把新的 API Key，<br/>
-                        然後替換掉程式碼裡的 <code>apiKey</code> 就能恢復正常。
-                    `;
-                }
-
-                document.getElementById('gallery-container').innerHTML = `
-                    <div class="h-full flex flex-col items-center justify-center px-6 text-center animate-fadeIn">
-                        <i data-lucide="shield-alert" class="w-20 h-20 mb-4 text-red-500"></i>
-                        <h2 class="font-bold text-2xl mb-2 text-gray-800">登入驗證失敗</h2>
-                        <div class="bg-red-50 p-5 rounded border border-red-200 text-sm text-red-700 max-w-lg leading-relaxed">
-                            ${errorMessage}
-                        </div>
-                    </div>`;
-                lucide.createIcons();
-            }
-        }
-
-        function handleFirestoreError(error) {
-            console.error("Firestore Error:", error);
-            state.isLoading = false;
+            let localUid = localStorage.getItem('travelLensUid');
             
-            if (error.code === 'permission-denied') {
-                document.getElementById('gallery-container').innerHTML = `
-                    <div class="h-full flex flex-col items-center justify-center px-6 text-center animate-fadeIn">
-                        <i data-lucide="shield-alert" class="w-20 h-20 mb-4 text-red-500"></i>
-                        <h2 class="font-bold text-2xl mb-2 text-gray-800">資料庫權限被阻擋 (Permission Denied)</h2>
-                        <p class="text-gray-600 mb-6 font-medium">這不是程式碼的錯誤，而是 Firebase 的安全規則尚未開放讀寫權限。</p>
-                        <div class="bg-gray-800 text-left text-green-400 p-5 rounded-lg w-full max-w-lg font-mono text-sm shadow-xl overflow-x-auto">
-                            <span class="text-gray-400">rules_version = '2';</span><br/>
-                            <span class="text-gray-400">service cloud.firestore {</span><br/>
-                            &nbsp;&nbsp;<span class="text-gray-400">match /databases/{database}/documents {</span><br/>
-                            &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-gray-400">match /{document=**} {</span><br/>
-                            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong class="text-yellow-300">allow read, write: if true;</strong><br/>
-                            &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-gray-400">}</span><br/>
-                            &nbsp;&nbsp;<span class="text-gray-400">}</span><br/>
-                            <span class="text-gray-400">}</span>
-                        </div>
-                    </div>`;
-                lucide.createIcons();
-            } else {
-                updateGallery();
+            try {
+                // 優先嘗試標準的匿名登入 (符合多數安全規則)
+                const userCred = await signInAnonymously(auth);
+                localUid = userCred.user.uid;
+                localStorage.setItem('travelLensUid', localUid);
+            } catch (authError) {
+                console.warn("匿名登入未啟用，降級為本機模式", authError);
+                // 若登入失敗 (如未啟用)，則使用降級的 Local ID
+                if (!localUid) {
+                    localUid = 'user-' + Math.random().toString(36).substr(2, 9);
+                    localStorage.setItem('travelLensUid', localUid);
+                }
             }
-        }
-
-        onAuthStateChanged(auth, (user) => {
-            state.user = user;
+            
+            state.user = { uid: localUid };
             updateUI();
 
-            if (user) {
-                try {
-                    // 🌟 監聽並恢復雲端的「自訂標籤」與「打勾篩選狀態」
-                    const tagsRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'tags');
-                    unsubTags = onSnapshot(tagsRef, (docSnap) => {
-                        if (docSnap.exists()) {
-                            const data = docSnap.data();
-                            // 相容新舊資料結構
-                            if (data.categories) {
-                                state.categories = data.categories;
-                            } else if (data.content && data.design && data.location) {
-                                state.categories = data; // 舊資料格式
-                            }
-                            if (data.filters) {
-                                state.filters = data.filters; // 恢復打勾紀錄
-                            }
-                            updateFilters();
-                            updateModals();
-                            updateGallery();
-                        }
-                    }, handleFirestoreError);
+            try {
+                const tagsRef = doc(db, 'artifacts', appId, 'users', state.user.uid, 'settings', 'tags');
+                unsubTags = onSnapshot(tagsRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        state.categories = docSnap.data();
+                        updateFilters();
+                        updateModals();
+                    }
+                });
 
-                    const photosRef = collection(db, 'artifacts', appId, 'users', user.uid, 'photos');
-                    unsubPhotos = onSnapshot(photosRef, (snapshot) => {
-                        const fetchedPhotos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                        fetchedPhotos.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-                        state.photos = fetchedPhotos;
-                        state.isLoading = false;
+                const photosRef = collection(db, 'artifacts', appId, 'users', state.user.uid, 'photos');
+                unsubPhotos = onSnapshot(photosRef, (snapshot) => {
+                    const fetchedPhotos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    fetchedPhotos.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                    state.photos = fetchedPhotos;
+                    state.isLoading = false;
+                    updateGallery();
+                    updateMoodBoard();
+                }, (error) => {
+                    console.error("Fetch photos error:", error);
+                    state.isLoading = false;
+                    
+                    // 顯示巨大的權限錯誤提示，教導使用者如何修改規則
+                    if (error.code === 'permission-denied') {
+                        document.getElementById('gallery-container').innerHTML = `
+                            <div class="h-full flex flex-col items-center justify-center px-6 text-center animate-fadeIn">
+                                <i data-lucide="shield-alert" class="w-20 h-20 mb-4 text-red-500"></i>
+                                <h2 class="font-bold text-2xl mb-2 text-gray-800">資料庫權限被阻擋 (Permission Denied)</h2>
+                                <p class="text-gray-600 mb-6 font-medium">這不是程式碼的錯誤，而是 Firebase 的安全規則尚未開放讀寫權限。</p>
+                                <div class="bg-gray-800 text-left text-green-400 p-5 rounded-lg w-full max-w-lg font-mono text-sm shadow-xl overflow-x-auto">
+                                    <span class="text-gray-400">rules_version = '2';</span><br/>
+                                    <span class="text-gray-400">service cloud.firestore {</span><br/>
+                                    &nbsp;&nbsp;<span class="text-gray-400">match /databases/{database}/documents {</span><br/>
+                                    &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-gray-400">match /{document=**} {</span><br/>
+                                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong class="text-yellow-300">allow read, write: if true;</strong><br/>
+                                    &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-gray-400">}</span><br/>
+                                    &nbsp;&nbsp;<span class="text-gray-400">}</span><br/>
+                                    <span class="text-gray-400">}</span>
+                                </div>
+                                <p class="mt-6 text-base text-gray-700 bg-yellow-50 px-6 py-3 rounded-full border border-yellow-200">
+                                    👉 請到 <strong>Firebase 控制台 ➔ Firestore Database ➔ 規則 (Rules)</strong> <br/>
+                                    將代碼替換如上方所示，點擊發布後，重新整理本網頁即可！
+                                </p>
+                            </div>`;
+                        lucide.createIcons();
+                    } else {
                         updateGallery();
-                        updateMoodBoard();
-                    }, handleFirestoreError);
-                } catch (err) {
-                    console.error("Firestore Init Error:", err);
-                }
-            } else {
-                if (unsubTags) unsubTags();
-                if (unsubPhotos) unsubPhotos();
-                state.photos = [];
-                state.isLoading = false;
-                updateGallery();
+                    }
+                });
+            } catch (err) {
+                console.error("Firestore Init Error:", err);
             }
-        });
+        }
 
         // === 4. DOM 渲染函數 ===
         function renderAuthStatus() {
@@ -270,10 +222,10 @@
 
             if (state.user) {
                 el.innerHTML = `<span class="flex items-center text-green-600 bg-green-50 px-2 py-1 rounded-full"><i data-lucide="cloud" class="w-3 h-3 mr-1"></i> 雲端已連線</span>`;
-                if (btn) btn.disabled = false;
+                btn.disabled = false;
             } else {
                 el.innerHTML = `<span class="flex items-center text-red-500 bg-red-50 px-2 py-1 rounded-full"><i data-lucide="cloud-off" class="w-3 h-3 mr-1"></i> 雲端連線中...</span>`;
-                if (btn) btn.disabled = true;
+                btn.disabled = true;
             }
         }
 
@@ -291,9 +243,7 @@
                 <div class="mb-6">
                     <h3 class="text-sm font-semibold text-gray-900 mb-3 flex items-center justify-between">
                         <div class="flex items-center gap-2"><i data-lucide="${sec.icon}" class="text-${sec.color}-500 w-4 h-4"></i> ${sec.title}</div>
-                        <button type="button" onclick="event.stopPropagation(); window.openAddTagModal('${sec.id}')" class="text-gray-400 hover:text-${sec.color}-600 bg-gray-100 hover:bg-${sec.color}-50 p-1.5 rounded-full transition-colors cursor-pointer" title="新增標籤">
-                            <i data-lucide="plus" class="w-3 h-3 pointer-events-none"></i>
-                        </button>
+                        <button onclick="window.openAddTagModal('${sec.id}')" class="text-gray-400 hover:text-${sec.color}-600 bg-gray-100 hover:bg-${sec.color}-50 p-1 rounded-full transition-colors" title="新增標籤"><i data-lucide="plus" class="w-3 h-3"></i></button>
                     </h3>
                 `;
                 state.categories[sec.id].forEach(cat => {
@@ -306,8 +256,8 @@
                             </div>
                             <span class="text-sm text-gray-700">${cat}</span>
                         </label>
-                        <button type="button" onclick="window.handleDeleteTag('${sec.id}', '${cat}', event)" class="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded" title="刪除標籤">
-                            <i data-lucide="x" class="w-3.5 h-3.5 pointer-events-none"></i>
+                        <button onclick="window.handleDeleteTag('${sec.id}', '${cat}', event)" class="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded" title="刪除標籤">
+                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
                         </button>
                     </div>`;
                 });
@@ -319,8 +269,8 @@
         function renderGallery() {
             const container = document.getElementById('gallery-container');
             const stats = document.getElementById('gallery-stats');
-            
-            if (container.innerHTML.includes('資料庫權限被阻擋') || container.innerHTML.includes('登入驗證失敗')) return;
+            // 如果已經被 permission-denied 覆蓋就不重繪
+            if (container.innerHTML.includes('資料庫權限被阻擋')) return;
 
             const filteredPhotos = state.photos.filter(photo => {
                 const matchSearch = photo.title.toLowerCase().includes(state.searchQuery.toLowerCase()) || (photo.location && photo.location.toLowerCase().includes(state.searchQuery.toLowerCase()));
@@ -343,7 +293,7 @@
                         <i data-lucide="image" class="w-16 h-16 mb-4 opacity-20"></i>
                         <h2 class="text-lg font-bold text-gray-700 mb-2">你的雲端圖庫目前是空的</h2>
                         <p class="mb-6 text-sm">點擊右上角上傳照片，或是先載入一些範例圖庫來體驗功能。</p>
-                        <button type="button" onclick="window.handleImportSamples()" class="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors">匯入範例照片</button>
+                        <button onclick="window.handleImportSamples()" class="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors">匯入範例照片</button>
                     </div>`;
                 return;
             }
@@ -360,11 +310,11 @@
                     <div class="group bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col">
                         <div class="relative aspect-video bg-gray-200 overflow-hidden shrink-0">
                             <img src="${photo.url}" alt="${photo.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                            <button type="button" onclick="window.toggleMoodBoard('${photo.id}')" class="absolute top-2 right-2 p-1.5 rounded-full shadow-sm backdrop-blur-sm transition-colors z-10 ${isSelected ? 'bg-blue-600 text-white' : 'bg-white/80 text-gray-700 hover:bg-white'}">
-                                <i data-lucide="${isSelected ? 'check' : 'plus'}" class="w-4 h-4 pointer-events-none"></i>
+                            <button onclick="window.toggleMoodBoard('${photo.id}')" class="absolute top-2 right-2 p-1.5 rounded-full shadow-sm backdrop-blur-sm transition-colors z-10 ${isSelected ? 'bg-blue-600 text-white' : 'bg-white/80 text-gray-700 hover:bg-white'}">
+                                <i data-lucide="${isSelected ? 'check' : 'plus'}" class="w-4 h-4"></i>
                             </button>
-                            <button type="button" onclick="window.handleDeletePhoto('${photo.id}')" class="absolute top-2 left-2 p-1.5 rounded-full bg-red-500/80 text-white shadow-sm backdrop-blur-sm opacity-0 group-hover:opacity-100 hover:bg-red-600 transition-all z-10">
-                                <i data-lucide="trash-2" class="w-3.5 h-3.5 pointer-events-none"></i>
+                            <button onclick="window.handleDeletePhoto('${photo.id}')" class="absolute top-2 left-2 p-1.5 rounded-full bg-red-500/80 text-white shadow-sm backdrop-blur-sm opacity-0 group-hover:opacity-100 hover:bg-red-600 transition-all z-10">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                             </button>
                             <div class="absolute bottom-2 left-2 flex gap-1 z-10">
                                 <span class="px-2 py-1 text-[10px] font-medium bg-black/60 text-white rounded backdrop-blur-sm shadow-sm flex items-center gap-1">
@@ -398,10 +348,8 @@
                         <i data-lucide="layout-template" class="w-8 h-8 opacity-20"></i>
                         <p class="text-sm">點擊照片右上角的 "+" <br/>將素材加入企劃板</p>
                     </div>`;
-                
                 btn.disabled = true;
-                btn.className = "w-full flex items-center justify-center gap-2 py-2.5 rounded-md text-sm font-medium transition-colors bg-gray-100 text-gray-400 cursor-not-allowed";
-                btn.innerHTML = `<i data-lucide="download" class="w-4 h-4"></i> 匯出排版資源`;
+                btn.className = "w-full py-2.5 rounded-md text-sm font-medium transition-colors bg-gray-100 text-gray-400 cursor-not-allowed";
             } else {
                 let html = '';
                 state.moodBoard.forEach(photo => {
@@ -412,16 +360,14 @@
                             <h5 class="text-sm font-medium text-gray-900 truncate">${photo.title}</h5>
                             <p class="text-xs text-gray-500 truncate">${photo.design || '未分類'}</p>
                         </div>
-                        <button type="button" onclick="window.toggleMoodBoard('${photo.id}')" class="absolute -top-2 -right-2 bg-white border shadow-sm text-gray-400 hover:text-red-500 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <i data-lucide="x" class="w-3.5 h-3.5 pointer-events-none"></i>
+                        <button onclick="window.toggleMoodBoard('${photo.id}')" class="absolute -top-2 -right-2 bg-white border shadow-sm text-gray-400 hover:text-red-500 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
                         </button>
                     </div>`;
                 });
                 container.innerHTML = html;
-                
                 btn.disabled = false;
-                btn.className = "w-full flex items-center justify-center gap-2 py-2.5 rounded-md text-sm font-medium transition-colors bg-gray-900 text-white hover:bg-gray-800 shadow-md";
-                btn.innerHTML = `<i data-lucide="download" class="w-4 h-4"></i> 匯出排版資源 (${state.moodBoard.length})`;
+                btn.className = "w-full py-2.5 rounded-md text-sm font-medium transition-colors bg-gray-900 text-white hover:bg-gray-800 shadow-md";
             }
         }
 
@@ -459,7 +405,7 @@
                                     <div class="flex-1 flex flex-col justify-center min-w-0">
                                         <div class="flex justify-between items-start mb-3">
                                             <input type="text" value="${item.suggestions.title}" oninput="window.updateBatchItem('${item.id}', 'title', this.value)" ${state.batchStatus === 'analyzing' || state.batchStatus === 'saving' ? 'disabled' : ''} class="font-medium text-gray-900 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:bg-gray-50 outline-none px-1 py-0.5 w-full max-w-sm transition-colors disabled:bg-transparent" />
-                                            <button type="button" onclick="window.removeBatchItem('${item.id}')" class="text-gray-400 hover:text-red-500 p-1 transition-colors"><i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i></button>
+                                            <button onclick="window.removeBatchItem('${item.id}')" class="text-gray-400 hover:text-red-500 p-1 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                                         </div>
                                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                             <div>
@@ -489,12 +435,28 @@
                             </div>
                         </div>
                         <div class="px-6 py-4 border-t border-gray-200 bg-white flex justify-between items-center shrink-0">
-                            <button type="button" onclick="window.closeBatchModal()" ${state.batchStatus === 'saving' ? 'disabled' : ''} class="px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition-colors text-sm disabled:opacity-50">取消匯入</button>
-                            <button type="button" onclick="window.handleSaveBatch()" ${state.batchStatus === 'analyzing' || state.batchStatus === 'saving' ? 'disabled' : ''} class="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:bg-blue-400 transition-colors shadow-sm">
+                            <button onclick="window.closeBatchModal()" ${state.batchStatus === 'saving' ? 'disabled' : ''} class="px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition-colors text-sm disabled:opacity-50">取消匯入</button>
+                            <button onclick="window.handleSaveBatch()" ${state.batchStatus === 'analyzing' || state.batchStatus === 'saving' ? 'disabled' : ''} class="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:bg-blue-400 transition-colors shadow-sm">
                                 ${state.batchStatus === 'analyzing' ? '等待解析...' : state.batchStatus === 'saving' ? '儲存至雲端...' : `確認並收錄全部 (${state.uploadBatch.length}張)`}
                                 ${state.batchStatus !== 'analyzing' && state.batchStatus !== 'saving' ? '<i data-lucide="image-plus" class="w-4.5 h-4.5"></i>' : ''}
                                 ${state.batchStatus === 'saving' ? '<i data-lucide="loader-2" class="w-4.5 h-4.5 animate-spin"></i>' : ''}
                             </button>
+                        </div>
+                    </div>
+                </div>`;
+            }
+
+            // 新增標籤 Modal
+            if (state.tagModal.isOpen) {
+                html += `
+                <div class="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/40 backdrop-blur-sm">
+                    <div class="bg-white rounded-lg p-6 w-80 shadow-xl transform transition-all animate-fadeIn">
+                        <h3 class="font-bold text-gray-900 mb-4">新增自訂標籤</h3>
+                        <input type="text" id="newTagInput" value="${state.newTagValue}" oninput="state.newTagValue = this.value" onkeydown="if(event.key === 'Enter') window.confirmAddTag()" placeholder="請輸入標籤名稱..." class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-2" />
+                        ${state.tagModal.error ? `<p class="text-red-500 text-xs mb-4">${state.tagModal.error}</p>` : ''}
+                        <div class="flex justify-end gap-2 mt-4">
+                            <button onclick="window.closeTagModal()" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors">取消</button>
+                            <button onclick="window.confirmAddTag()" class="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">確定</button>
                         </div>
                     </div>
                 </div>`;
@@ -508,14 +470,19 @@
                         <h3 class="font-bold text-gray-900 mb-2">確認操作</h3>
                         <p class="text-gray-600 text-sm mb-6">${state.confirmDialog.message}</p>
                         <div class="flex justify-end gap-2">
-                            <button type="button" onclick="window.closeConfirmDialog()" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors">取消</button>
-                            <button type="button" onclick="window.executeConfirmAction()" class="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors">確定</button>
+                            <button onclick="window.closeConfirmDialog()" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors">取消</button>
+                            <button onclick="window.executeConfirmAction()" class="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors">確定</button>
                         </div>
                     </div>
                 </div>`;
             }
 
             container.innerHTML = html;
+
+            // 如果打開 Tag Modal，自動 Focus Input
+            if (state.tagModal.isOpen) {
+                setTimeout(() => document.getElementById('newTagInput')?.focus(), 10);
+            }
         }
 
         // 統一更新入口
@@ -534,38 +501,28 @@
 
         // === 5. 事件與業務邏輯 ===
         
+        // 搜尋監聽
         document.getElementById('searchInput').addEventListener('input', (e) => {
             state.searchQuery = e.target.value;
-            updateGallery(); 
+            updateGallery(); // 僅更新照片網格，避免輸入框失焦
         });
 
-        // 🌟 將標籤篩選狀態即時存入雲端
-        window.toggleFilter = async (type, value) => {
+        // 左側過濾器
+        window.toggleFilter = (type, value) => {
             const current = state.filters[type];
             if (current.includes(value)) state.filters[type] = current.filter(item => item !== value);
             else state.filters[type].push(value);
-            
-            if (state.user) {
-                const tagsRef = doc(db, 'artifacts', appId, 'users', state.user.uid, 'settings', 'tags');
-                await setDoc(tagsRef, { filters: state.filters }, { merge: true });
-            }
-            
             updateFilters();
             updateGallery();
         };
 
-        window.clearFilters = async () => {
+        window.clearFilters = () => {
             state.filters = { content: [], design: [], location: [] };
-            
-            if (state.user) {
-                const tagsRef = doc(db, 'artifacts', appId, 'users', state.user.uid, 'settings', 'tags');
-                await setDoc(tagsRef, { filters: state.filters }, { merge: true });
-            }
-            
             updateFilters();
             updateGallery();
         };
 
+        // 企劃板邏輯
         window.toggleMoodBoard = (photoId) => {
             const photo = state.photos.find(p => p.id === photoId) || state.moodBoard.find(p => p.id === photoId);
             if (!photo) return;
@@ -576,57 +533,43 @@
             updateMoodBoard();
         };
 
+        // 新增標籤邏輯
         window.openAddTagModal = (type) => {
-            state.tagModal.type = type;
-            const overlay = document.getElementById('tag-modal-overlay');
-            const input = document.getElementById('newTagInput');
-            const errorMsg = document.getElementById('tag-modal-error');
-            
-            input.value = '';
-            errorMsg.classList.add('hidden');
-            overlay.classList.remove('hidden');
-            overlay.classList.add('flex');
-            
-            setTimeout(() => input.focus(), 50); 
+            state.tagModal = { isOpen: true, type: type, error: '' };
+            state.newTagValue = '';
+            updateModals();
         };
 
         window.closeTagModal = () => {
-            const overlay = document.getElementById('tag-modal-overlay');
-            overlay.classList.add('hidden');
-            overlay.classList.remove('flex');
+            state.tagModal.isOpen = false;
+            updateModals();
         };
 
-        // 🌟 將新增的標籤存入雲端
         window.confirmAddTag = async () => {
             const type = state.tagModal.type;
-            const input = document.getElementById('newTagInput');
-            const errorMsg = document.getElementById('tag-modal-error');
-            const tag = input.value.trim();
-
+            const tag = state.newTagValue.trim();
             if (!tag) {
-                errorMsg.innerText = '標籤名稱不能為空';
-                errorMsg.classList.remove('hidden');
+                state.tagModal.error = '標籤名稱不能為空';
+                updateModals();
                 return;
             }
             if (state.categories[type].includes(tag)) {
-                errorMsg.innerText = '該標籤已經存在！';
-                errorMsg.classList.remove('hidden');
+                state.tagModal.error = '該標籤已經存在！';
+                updateModals();
                 return;
             }
 
-            errorMsg.classList.add('hidden');
             state.categories[type].push(tag);
-            
             if (state.user) {
                 const tagsRef = doc(db, 'artifacts', appId, 'users', state.user.uid, 'settings', 'tags');
-                // 同時寫入最新的 categories，保留原有的 filters
-                await setDoc(tagsRef, { categories: state.categories }, { merge: true });
+                await setDoc(tagsRef, state.categories, { merge: true });
             }
-            
-            window.closeTagModal();
-            updateFilters(); 
+            state.tagModal.isOpen = false;
+            updateModals();
+            updateFilters();
         };
 
+        // 刪除標籤與照片邏輯
         window.handleDeleteTag = (type, tagToDelete, e) => {
             e.stopPropagation();
             state.confirmDialog = {
@@ -635,12 +578,10 @@
                 action: async () => {
                     state.categories[type] = state.categories[type].filter(t => t !== tagToDelete);
                     state.filters[type] = state.filters[type].filter(t => t !== tagToDelete);
-                    
                     if (state.user) {
                         const tagsRef = doc(db, 'artifacts', appId, 'users', state.user.uid, 'settings', 'tags');
-                        await setDoc(tagsRef, { categories: state.categories, filters: state.filters }, { merge: true });
+                        await setDoc(tagsRef, state.categories, { merge: true });
                     }
-                    
                     window.closeConfirmDialog();
                     updateFilters();
                     updateGallery();
@@ -675,45 +616,25 @@
             if (state.confirmDialog.action) state.confirmDialog.action();
         };
 
+        // 匯出排版資源邏輯 (新增)
         window.handleExport = () => {
             if (state.moodBoard.length === 0) return;
             
-            const btn = document.getElementById('exportBtn');
-            btn.disabled = true;
-            btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin inline-block mr-1"></i> 打包下載中...`;
-            lucide.createIcons();
-
-            const exportData = {
-                exportedAt: new Date().toISOString(),
-                totalPhotos: state.moodBoard.length,
-                photos: state.moodBoard.map(p => ({
-                    id: p.id,
-                    title: p.title,
-                    content_tag: p.content,
-                    design_tag: p.design,
-                    location_tag: p.location,
-                    image_url: p.url
-                }))
+            state.confirmDialog = {
+                isOpen: true,
+                message: `確定要將這 ${state.moodBoard.length} 張素材打包匯出嗎？\n\n(此為模擬功能，實務上這裡會觸發下載 ZIP 壓縮檔，或直接透過 API 將圖片匯入 InDesign 等排版軟體)`,
+                action: () => {
+                    // 模擬匯出後清空企劃板
+                    state.moodBoard = [];
+                    window.closeConfirmDialog();
+                    updateGallery();
+                    updateMoodBoard();
+                }
             };
-
-            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'TravelLens_Resources.json';
-            document.body.appendChild(a);
-            a.click();
-            
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-
-            setTimeout(() => {
-                state.moodBoard = [];
-                updateGallery();
-                updateMoodBoard();
-            }, 1000);
+            updateModals();
         };
 
+        // 匯入範例
         window.handleImportSamples = async () => {
             if (!state.user) return;
             state.isLoading = true;
@@ -726,6 +647,7 @@
             } catch (e) { console.error(e); }
         };
 
+        // 壓縮圖片引擎
         const compressImage = (file) => {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -753,6 +675,7 @@
             });
         };
 
+        // 批量上傳邏輯
         window.handleBatchUpload = async (e) => {
             const files = Array.from(e.target.files);
             if (files.length === 0) return;
@@ -774,6 +697,7 @@
                 state.uploadBatch = processedBatch;
                 updateModals();
 
+                // 模擬 AI 處理時間
                 setTimeout(() => {
                     const randomItem = (arr) => arr[Math.floor(Math.random() * arr.length)];
                     state.uploadBatch = state.uploadBatch.map(item => ({
@@ -791,7 +715,6 @@
 
             } catch (err) {
                 console.error("Upload error:", err);
-                alert("圖片處理發生錯誤，請確認圖片格式是否正確！");
                 state.batchStatus = 'idle';
                 state.isBatchModalOpen = false;
                 updateModals();
@@ -802,6 +725,7 @@
         window.updateBatchItem = (id, field, value) => {
             const item = state.uploadBatch.find(i => i.id === id);
             if (item) item.suggestions[field] = value;
+            // 避免焦點丟失，此處不重新 renderModals()
         };
 
         window.removeBatchItem = (id) => {
@@ -843,6 +767,7 @@
 
         // 執行初始載入
         initApp();
+        updateUI();
 
     </script>
 </body>
