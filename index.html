@@ -857,7 +857,7 @@
             state.batchStatus = 'saving';
             updateModals();
             
-            const photosRef = collection(db, 'artifacts', appId, 'users', state.user.uid, 'photos');
+            const photosRef = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
             try {
                 for (const item of state.uploadBatch) {
                     await addDoc(photosRef, {
