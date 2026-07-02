@@ -23,18 +23,18 @@
         .scan-line { animation: scan 1.5s ease-in-out infinite alternate; }
     </style>
 </head>
-<body class="bg-gray-50 font-sans text-gray-800 overflow-hidden">
+<body class="bg-gray-50 font-sans text-gray-800"> <!-- 移除 overflow-hidden 讓手機可以上下滑動 -->
 
     <!-- === 系統登入護城河 === -->
-    <div id="login-screen" class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 backdrop-blur-md transition-opacity duration-300">
-        <div class="bg-white rounded-2xl p-8 w-96 shadow-2xl transform transition-all animate-fadeIn text-center">
+    <div id="login-screen" class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 backdrop-blur-md transition-opacity duration-300 px-4">
+        <div class="bg-white rounded-2xl p-6 md:p-8 w-full max-w-sm shadow-2xl transform transition-all animate-fadeIn text-center">
             <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
                 <i data-lucide="lock" class="w-8 h-8"></i>
             </div>
             <h2 class="text-2xl font-bold text-gray-900 mb-2">TravelLens</h2>
-            <p class="text-sm text-gray-500 mb-6">請輸入密碼進入資產系統</p>
+            <p class="text-sm text-gray-500 mb-6">請輸入高強度密碼進入系統 (預設: Travel@2026!)</p>
             <form onsubmit="window.handleLogin(event)">
-                <input type="password" id="password-input" placeholder="請輸入密碼..." class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-3 transition-all text-center tracking-widest" autofocus />
+                <input type="password" id="password-input" placeholder="需含大小寫、數字與符號..." class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-3 transition-all text-center tracking-widest" autofocus />
                 <p id="login-error" class="text-red-500 text-xs mb-4 hidden">密碼錯誤，請再試一次</p>
                 <button type="submit" class="w-full bg-blue-600 text-white rounded-lg px-4 py-3 font-medium hover:bg-blue-700 transition-colors shadow-md">
                     進入系統
@@ -43,11 +43,11 @@
         </div>
     </div>
 
-    <!-- 加上 hidden 隱藏主應用，等登入後再顯示 -->
-    <div class="flex h-screen relative hidden" id="app">
-        <!-- 1. 左側過濾面板 -->
-        <aside class="w-64 bg-white border-r border-gray-200 flex flex-col h-full shrink-0 z-10">
-            <div class="p-5 border-b border-gray-100">
+    <!-- 加入響應式設計：手機版改為上下排列 (flex-col)，電腦版維持左右 (md:flex-row) -->
+    <div class="flex flex-col md:flex-row min-h-screen relative hidden" id="app">
+        <!-- 1. 左側過濾面板 (手機版限制最高高度並可內部滑動) -->
+        <aside class="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-gray-200 flex flex-col h-auto md:h-screen shrink-0 z-10">
+            <div class="p-5 border-b border-gray-100 shrink-0">
                 <h1 class="text-xl font-bold tracking-wider text-gray-900 flex items-center gap-2">
                     <i data-lucide="sparkles" class="text-blue-600 w-5 h-5"></i> TravelLens
                 </h1>
@@ -55,7 +55,7 @@
                     <!-- Auth status rendered here -->
                 </div>
             </div>
-            <div class="p-5 flex-1 overflow-y-auto">
+            <div class="p-5 flex-1 overflow-y-auto max-h-[40vh] md:max-h-none">
                 <div class="relative mb-6">
                     <input type="text" id="searchInput" placeholder="搜尋關鍵字..." class="w-full pl-9 pr-3 py-2 bg-gray-100 border-transparent rounded-md text-sm focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all" />
                     <i data-lucide="search" class="absolute left-3 top-2.5 text-gray-400 w-4 h-4"></i>
@@ -66,38 +66,38 @@
             </div>
         </aside>
 
-        <!-- 2. 中央照片網格 -->
-        <main class="flex-1 flex flex-col h-full overflow-hidden z-10">
-            <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 shrink-0">
+        <!-- 2. 中央照片網格 (手機版保證一定高度) -->
+        <main class="w-full md:flex-1 flex flex-col h-[70vh] md:h-screen overflow-hidden z-10 bg-gray-50 shrink-0">
+            <header class="h-auto md:h-16 py-3 md:py-0 bg-white border-b border-gray-200 flex flex-col md:flex-row items-center justify-between px-6 shrink-0 gap-3 md:gap-0">
                 <div id="gallery-stats" class="flex items-center gap-2 text-sm text-gray-500">
                     <!-- Stats rendered here -->
                 </div>
                 <div class="flex items-center gap-4">
                     <button onclick="window.clearFilters()" class="text-sm text-gray-500 hover:text-gray-800 transition-colors">清除條件</button>
                     <input type="file" accept="image/*" multiple class="hidden" id="fileInput" onchange="window.handleBatchUpload(event)" />
-                    <button id="uploadBtn" onclick="document.getElementById('fileInput').click()" disabled class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-sm">
-                        <i data-lucide="layers" class="w-4 h-4"></i> 批量上傳與分析
+                    <button id="uploadBtn" onclick="document.getElementById('fileInput').click()" disabled class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-sm whitespace-nowrap">
+                        <i data-lucide="layers" class="w-4 h-4"></i> 批量上傳
                     </button>
                 </div>
             </header>
-            <div id="gallery-container" class="flex-1 overflow-y-auto p-6">
+            <div id="gallery-container" class="flex-1 overflow-y-auto p-4 md:p-6">
                 <!-- Photos rendered here -->
             </div>
         </main>
 
         <!-- 3. 右側企劃板 -->
-        <aside class="w-72 bg-white border-l border-gray-200 flex flex-col h-full shadow-[-4px_0_15px_-3px_rgba(0,0,0,0.05)] z-10">
-            <div class="p-5 border-b border-gray-100 bg-gray-50/50">
+        <aside class="w-full md:w-72 bg-white border-t md:border-t-0 md:border-l border-gray-200 flex flex-col h-auto md:h-screen shadow-none md:shadow-[-4px_0_15px_-3px_rgba(0,0,0,0.05)] z-10 shrink-0">
+            <div class="p-5 border-b border-gray-100 bg-gray-50/50 shrink-0">
                 <h2 class="text-lg font-bold text-gray-900 flex items-center justify-between">
                     本期雜誌企劃板
                     <span id="moodboard-count" class="bg-blue-100 text-blue-700 text-xs py-0.5 px-2 rounded-full">0 張</span>
                 </h2>
                 <p class="text-xs text-gray-500 mt-1">挑選好的排版素材</p>
             </div>
-            <div id="moodboard-items" class="flex-1 overflow-y-auto p-4 space-y-4">
+            <div id="moodboard-items" class="flex-1 overflow-y-auto p-4 space-y-4 max-h-[40vh] md:max-h-none">
                 <!-- Moodboard items rendered here -->
             </div>
-            <div class="p-4 border-t border-gray-100 bg-white">
+            <div class="p-4 border-t border-gray-100 bg-white shrink-0">
                 <button id="exportBtn" onclick="window.handleExport()" disabled class="w-full py-2.5 rounded-md text-sm font-medium transition-colors bg-gray-100 text-gray-400 cursor-not-allowed">
                     匯出排版資源 (ZIP)
                 </button>
@@ -111,7 +111,7 @@
     <!-- 系統邏輯腳本 -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
-        import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        import { getAuth, signInAnonymously, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
         import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, setDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
         // === 1. 初始化 Firebase ===
@@ -128,7 +128,9 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        
+        // 確保未來部署到 GitHub 後有預設的房號，但在預覽環境遵守其安全規則
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'travel-lens-prod';
 
         // === 2. 初始靜態資料與狀態管理 ===
         const SAMPLE_PHOTOS = [
@@ -161,39 +163,68 @@
         let unsubTags = null;
         let unsubPhotos = null;
 
-        // === 密碼登入邏輯 ===
+        // === 密碼登入與防暴力破解邏輯 ===
         window.handleLogin = (e) => {
             e.preventDefault();
+            const now = Date.now();
+            const lockoutUntil = parseInt(localStorage.getItem('travelLensLockout') || '0', 10);
+            
+            if (now < lockoutUntil) {
+                const remaining = Math.ceil((lockoutUntil - now) / 1000);
+                showLoginError(`嘗試次數過多，請等待 ${remaining} 秒後再試。`);
+                return;
+            }
+
             const pwd = document.getElementById('password-input').value;
-            if (pwd === 'travel') {
-                // 登入成功：記錄狀態、切換畫面並初始化系統
+            const EXPECTED_PWD = 'Travel@2026!'; 
+
+            if (pwd === EXPECTED_PWD) {
+                localStorage.removeItem('travelLensAttempts');
+                localStorage.removeItem('travelLensLockout');
                 sessionStorage.setItem('travelLensAuth', 'true');
+                
                 document.getElementById('login-screen').classList.add('hidden');
                 document.getElementById('app').classList.remove('hidden');
                 
-                // 啟動系統連線
                 initApp();
                 updateUI();
             } else {
-                // 密碼錯誤：顯示錯誤訊息並清空輸入框
-                document.getElementById('login-error').classList.remove('hidden');
-                document.getElementById('password-input').value = '';
-                document.getElementById('password-input').focus();
+                let attempts = parseInt(localStorage.getItem('travelLensAttempts') || '0', 10) + 1;
+                localStorage.setItem('travelLensAttempts', attempts);
+
+                if (attempts >= 5) {
+                    const lockTime = now + 3 * 60 * 1000; 
+                    localStorage.setItem('travelLensLockout', lockTime);
+                    showLoginError(`密碼錯誤達 5 次，系統鎖定 3 分鐘。`);
+                } else {
+                    showLoginError(`密碼錯誤，剩餘 ${5 - attempts} 次機會。`);
+                }
             }
         };
 
-        // === 3. 雙重防護連線 (嘗試匿名登入 -> 降級本機 ID) ===
+        function showLoginError(msg) {
+            const errEl = document.getElementById('login-error');
+            errEl.innerText = msg;
+            errEl.classList.remove('hidden');
+            document.getElementById('password-input').value = '';
+            document.getElementById('password-input').focus();
+        }
+
+        // === 3. 雙重防護連線 ===
         async function initApp() {
             let localUid = localStorage.getItem('travelLensUid');
             
             try {
-                // 優先嘗試標準的匿名登入 (符合多數安全規則)
-                const userCred = await signInAnonymously(auth);
-                localUid = userCred.user.uid;
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    const userCred = await signInWithCustomToken(auth, __initial_auth_token);
+                    localUid = userCred.user.uid;
+                } else {
+                    const userCred = await signInAnonymously(auth);
+                    localUid = userCred.user.uid;
+                }
                 localStorage.setItem('travelLensUid', localUid);
             } catch (authError) {
-                console.warn("匿名登入未啟用，降級為本機模式", authError);
-                // 若登入失敗 (如未啟用)，則使用降級的 Local ID
+                console.warn("認證失敗，降級為本機模式", authError);
                 if (!localUid) {
                     localUid = 'user-' + Math.random().toString(36).substr(2, 9);
                     localStorage.setItem('travelLensUid', localUid);
@@ -204,17 +235,16 @@
             updateUI();
 
             try {
-                const tagsRef = doc(db, 'artifacts', appId, 'users', state.user.uid, 'settings', 'tags');
+                const tagsRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'tags');
                 unsubTags = onSnapshot(tagsRef, (docSnap) => {
                     if (docSnap.exists()) {
-                        // 確保原本的分類不會因為後端資料不齊全而消失，利用展開運算符合併
                         state.categories = { ...state.categories, ...docSnap.data() };
                         updateFilters();
                         updateModals();
                     }
                 });
 
-                const photosRef = collection(db, 'artifacts', appId, 'users', state.user.uid, 'photos');
+                const photosRef = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
                 unsubPhotos = onSnapshot(photosRef, (snapshot) => {
                     const fetchedPhotos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     fetchedPhotos.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -230,22 +260,8 @@
                         document.getElementById('gallery-container').innerHTML = `
                             <div class="h-full flex flex-col items-center justify-center px-6 text-center animate-fadeIn">
                                 <i data-lucide="shield-alert" class="w-20 h-20 mb-4 text-red-500"></i>
-                                <h2 class="font-bold text-2xl mb-2 text-gray-800">資料庫權限被阻擋 (Permission Denied)</h2>
-                                <p class="text-gray-600 mb-6 font-medium">這不是程式碼的錯誤，而是 Firebase 的安全規則尚未開放讀寫權限。</p>
-                                <div class="bg-gray-800 text-left text-green-400 p-5 rounded-lg w-full max-w-lg font-mono text-sm shadow-xl overflow-x-auto">
-                                    <span class="text-gray-400">rules_version = '2';</span><br/>
-                                    <span class="text-gray-400">service cloud.firestore {</span><br/>
-                                    &nbsp;&nbsp;<span class="text-gray-400">match /databases/{database}/documents {</span><br/>
-                                    &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-gray-400">match /{document=**} {</span><br/>
-                                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<strong class="text-yellow-300">allow read, write: if true;</strong><br/>
-                                    &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-gray-400">}</span><br/>
-                                    &nbsp;&nbsp;<span class="text-gray-400">}</span><br/>
-                                    <span class="text-gray-400">}</span>
-                                </div>
-                                <p class="mt-6 text-base text-gray-700 bg-yellow-50 px-6 py-3 rounded-full border border-yellow-200">
-                                    👉 請到 <strong>Firebase 控制台 ➔ Firestore Database ➔ 規則 (Rules)</strong> <br/>
-                                    將代碼替換如上方所示，點擊發布後，重新整理本網頁即可！
-                                </p>
+                                <h2 class="font-bold text-2xl mb-2 text-gray-800">資料庫連線權限異常</h2>
+                                <p class="text-gray-600 mb-6 font-medium">如果是部署至外部伺服器發生此錯誤，請確認 Firebase Rules 已正確設定為 allow read, write: if true;。</p>
                             </div>`;
                         lucide.createIcons();
                     } else {
@@ -312,7 +328,7 @@
             const container = document.getElementById('gallery-container');
             const stats = document.getElementById('gallery-stats');
             
-            if (container.innerHTML.includes('資料庫權限被阻擋')) return;
+            if (container.innerHTML.includes('資料庫連線權限異常')) return;
 
             const filteredPhotos = state.photos.filter(photo => {
                 const matchSearch = photo.title.toLowerCase().includes(state.searchQuery.toLowerCase()) || (photo.location && photo.location.toLowerCase().includes(state.searchQuery.toLowerCase()));
@@ -331,31 +347,31 @@
 
             if (state.photos.length === 0) {
                 container.innerHTML = `
-                    <div class="h-full flex flex-col items-center justify-center text-gray-400">
+                    <div class="h-full flex flex-col items-center justify-center text-gray-400 py-10">
                         <i data-lucide="image" class="w-16 h-16 mb-4 opacity-20"></i>
-                        <h2 class="text-lg font-bold text-gray-700 mb-2">你的雲端圖庫目前是空的</h2>
-                        <p class="mb-6 text-sm">點擊右上角上傳照片，或是先載入一些範例圖庫來體驗功能。</p>
+                        <h2 class="text-lg font-bold text-gray-700 mb-2">圖庫目前是空的</h2>
+                        <p class="mb-6 text-sm">請使用電腦版上傳照片，或匯入範例。</p>
                         <button onclick="window.handleImportSamples()" class="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors">匯入範例照片</button>
                     </div>`;
                 return;
             }
 
             if (filteredPhotos.length === 0) {
-                 container.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400"><i data-lucide="filter" class="w-12 h-12 mb-4 opacity-20"></i><p>沒有找到符合條件的照片，請嘗試調整篩選器。</p></div>`;
+                 container.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400 py-10"><i data-lucide="filter" class="w-12 h-12 mb-4 opacity-20"></i><p>沒有找到符合條件的照片，請嘗試調整篩選器。</p></div>`;
                  return;
             }
 
-            let html = `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">`;
+            let html = `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">`;
             filteredPhotos.forEach(photo => {
                 const isSelected = state.moodBoard.some(p => p.id === photo.id);
                 html += `
                     <div class="group bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col">
                         <div class="relative aspect-video bg-gray-200 overflow-hidden shrink-0">
                             <img src="${photo.url}" alt="${photo.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                            <button onclick="window.toggleMoodBoard('${photo.id}')" class="absolute top-2 right-2 p-1.5 rounded-full shadow-sm backdrop-blur-sm transition-colors z-10 ${isSelected ? 'bg-blue-600 text-white' : 'bg-white/80 text-gray-700 hover:bg-white'}">
+                            <button onclick="window.toggleMoodBoard('${photo.id}')" class="absolute top-2 right-2 p-2 md:p-1.5 rounded-full shadow-sm backdrop-blur-sm transition-colors z-10 ${isSelected ? 'bg-blue-600 text-white' : 'bg-white/80 text-gray-700 hover:bg-white'}">
                                 <i data-lucide="${isSelected ? 'check' : 'plus'}" class="w-4 h-4"></i>
                             </button>
-                            <button onclick="window.handleDeletePhoto('${photo.id}')" class="absolute top-2 left-2 p-1.5 rounded-full bg-red-500/80 text-white shadow-sm backdrop-blur-sm opacity-0 group-hover:opacity-100 hover:bg-red-600 transition-all z-10">
+                            <button onclick="window.handleDeletePhoto('${photo.id}')" class="absolute top-2 left-2 p-2 md:p-1.5 rounded-full bg-red-500/80 text-white shadow-sm backdrop-blur-sm opacity-0 group-hover:opacity-100 hover:bg-red-600 transition-all z-10">
                                 <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                             </button>
                             <div class="absolute bottom-2 left-2 flex gap-1 z-10">
@@ -386,7 +402,7 @@
 
             if (state.moodBoard.length === 0) {
                 container.innerHTML = `
-                    <div class="h-full flex flex-col items-center justify-center text-center text-gray-400 space-y-3 px-4">
+                    <div class="h-full flex flex-col items-center justify-center text-center text-gray-400 space-y-3 px-4 py-8 md:py-0">
                         <i data-lucide="layout-template" class="w-8 h-8 opacity-20"></i>
                         <p class="text-sm">點擊照片右上角的 "+" <br/>將素材加入企劃板</p>
                     </div>`;
@@ -402,7 +418,7 @@
                             <h5 class="text-sm font-medium text-gray-900 truncate">${photo.title}</h5>
                             <p class="text-xs text-gray-500 truncate">${photo.design || '未分類'}</p>
                         </div>
-                        <button onclick="window.toggleMoodBoard('${photo.id}')" class="absolute -top-2 -right-2 bg-white border shadow-sm text-gray-400 hover:text-red-500 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onclick="window.toggleMoodBoard('${photo.id}')" class="absolute -top-2 -right-2 bg-white border shadow-sm text-gray-400 hover:text-red-500 rounded-full p-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
                             <i data-lucide="x" class="w-3.5 h-3.5"></i>
                         </button>
                     </div>`;
@@ -420,7 +436,7 @@
             // 批量上傳 Modal
             if (state.isBatchModalOpen) {
                 html += `
-                <div class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 md:p-8">
+                <div class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 md:p-8">
                     <div class="bg-white rounded-xl shadow-2xl w-full max-w-5xl h-full max-h-[85vh] flex flex-col overflow-hidden animate-fadeIn">
                         <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 shrink-0">
                             <div class="flex items-center gap-3">
@@ -432,11 +448,11 @@
                             </div>
                             ${state.batchStatus === 'analyzing' ? `<div class="flex items-center gap-2 text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full text-sm font-medium"><i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> 雲端運算中...</div>` : ''}
                         </div>
-                        <div class="flex-1 overflow-y-auto bg-gray-100/50 p-6">
+                        <div class="flex-1 overflow-y-auto bg-gray-100/50 p-4 md:p-6">
                             <div class="space-y-4">
                                 ${state.uploadBatch.map((item, index) => `
                                 <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col md:flex-row gap-5 relative group">
-                                    <div class="w-full md:w-48 h-32 rounded-lg overflow-hidden relative shrink-0 bg-gray-100 border border-gray-100">
+                                    <div class="w-full md:w-48 h-40 md:h-32 rounded-lg overflow-hidden relative shrink-0 bg-gray-100 border border-gray-100">
                                         <img src="${item.url}" class="w-full h-full object-cover" alt="預覽" />
                                         ${state.batchStatus === 'analyzing' ? `
                                         <div class="absolute inset-0 bg-blue-900/40 flex items-center justify-center backdrop-blur-[1px]">
@@ -446,27 +462,27 @@
                                     </div>
                                     <div class="flex-1 flex flex-col justify-center min-w-0">
                                         <div class="flex justify-between items-start mb-3">
-                                            <input type="text" value="${item.suggestions.title}" oninput="window.updateBatchItem('${item.id}', 'title', this.value)" ${state.batchStatus === 'analyzing' || state.batchStatus === 'saving' ? 'disabled' : ''} class="font-medium text-gray-900 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:bg-gray-50 outline-none px-1 py-0.5 w-full max-w-sm transition-colors disabled:bg-transparent" />
-                                            <button onclick="window.removeBatchItem('${item.id}')" class="text-gray-400 hover:text-red-500 p-1 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                                            <input type="text" value="${item.suggestions.title}" oninput="window.updateBatchItem('${item.id}', 'title', this.value)" ${state.batchStatus === 'analyzing' || state.batchStatus === 'saving' ? 'disabled' : ''} class="font-medium text-gray-900 border-b border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:bg-gray-50 outline-none px-1 py-0.5 w-full max-w-sm transition-colors disabled:bg-transparent" />
+                                            <button onclick="window.removeBatchItem('${item.id}')" class="text-gray-400 hover:text-red-500 p-2 md:p-1 transition-colors"><i data-lucide="trash-2" class="w-5 h-5 md:w-4 md:h-4"></i></button>
                                         </div>
                                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                             <div>
                                                 <label class="text-[10px] uppercase font-bold text-gray-400 mb-1.5 flex items-center gap-1"><i data-lucide="bookmark" class="w-2.5 h-2.5"></i> 內容</label>
-                                                <select onchange="window.updateBatchItem('${item.id}', 'content', this.value)" ${state.batchStatus === 'analyzing' || state.batchStatus === 'saving' ? 'disabled' : ''} class="w-full text-xs border border-gray-200 rounded p-1.5 focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-gray-50">
+                                                <select onchange="window.updateBatchItem('${item.id}', 'content', this.value)" ${state.batchStatus === 'analyzing' || state.batchStatus === 'saving' ? 'disabled' : ''} class="w-full text-xs border border-gray-200 rounded p-2 md:p-1.5 focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-gray-50">
                                                     <option value="" disabled ${!item.suggestions.content ? 'selected' : ''}>請選擇</option>
                                                     ${state.categories.content.map(c => `<option value="${c}" ${item.suggestions.content === c ? 'selected' : ''}>${c}</option>`).join('')}
                                                 </select>
                                             </div>
                                             <div>
                                                 <label class="text-[10px] uppercase font-bold text-gray-400 mb-1.5 flex items-center gap-1"><i data-lucide="layout-template" class="w-2.5 h-2.5"></i> 設計</label>
-                                                <select onchange="window.updateBatchItem('${item.id}', 'design', this.value)" ${state.batchStatus === 'analyzing' || state.batchStatus === 'saving' ? 'disabled' : ''} class="w-full text-xs border border-gray-200 rounded p-1.5 focus:ring-1 focus:ring-purple-500 outline-none disabled:bg-gray-50">
+                                                <select onchange="window.updateBatchItem('${item.id}', 'design', this.value)" ${state.batchStatus === 'analyzing' || state.batchStatus === 'saving' ? 'disabled' : ''} class="w-full text-xs border border-gray-200 rounded p-2 md:p-1.5 focus:ring-1 focus:ring-purple-500 outline-none disabled:bg-gray-50">
                                                     <option value="" disabled ${!item.suggestions.design ? 'selected' : ''}>請選擇</option>
                                                     ${state.categories.design.map(c => `<option value="${c}" ${item.suggestions.design === c ? 'selected' : ''}>${c}</option>`).join('')}
                                                 </select>
                                             </div>
                                             <div>
                                                 <label class="text-[10px] uppercase font-bold text-gray-400 mb-1.5 flex items-center gap-1"><i data-lucide="map-pin" class="w-2.5 h-2.5"></i> 地點</label>
-                                                <select onchange="window.updateBatchItem('${item.id}', 'location', this.value)" ${state.batchStatus === 'analyzing' || state.batchStatus === 'saving' ? 'disabled' : ''} class="w-full text-xs border border-gray-200 rounded p-1.5 focus:ring-1 focus:ring-green-500 outline-none disabled:bg-gray-50">
+                                                <select onchange="window.updateBatchItem('${item.id}', 'location', this.value)" ${state.batchStatus === 'analyzing' || state.batchStatus === 'saving' ? 'disabled' : ''} class="w-full text-xs border border-gray-200 rounded p-2 md:p-1.5 focus:ring-1 focus:ring-green-500 outline-none disabled:bg-gray-50">
                                                     <option value="" disabled ${!item.suggestions.location ? 'selected' : ''}>請選擇</option>
                                                     ${state.categories.location.map(c => `<option value="${c}" ${item.suggestions.location === c ? 'selected' : ''}>${c}</option>`).join('')}
                                                 </select>
@@ -491,10 +507,9 @@
             // 新增標籤 Modal
             if (state.tagModal.isOpen) {
                 html += `
-                <div class="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/40 backdrop-blur-sm">
-                    <div class="bg-white rounded-lg p-6 w-80 shadow-xl transform transition-all animate-fadeIn">
+                <div class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/40 backdrop-blur-sm px-4">
+                    <div class="bg-white rounded-lg p-6 w-full max-w-sm shadow-xl transform transition-all animate-fadeIn">
                         <h3 class="font-bold text-gray-900 mb-4">新增自訂標籤</h3>
-                        <!-- 修正 BUG：改用全域函數 updateNewTagValue() 同步，防止 ReferenceError -->
                         <input type="text" id="newTagInput" value="${state.newTagValue}" oninput="window.updateNewTagValue(this.value)" onkeydown="if(event.key === 'Enter') window.confirmAddTag()" placeholder="請輸入標籤名稱..." class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-2" />
                         ${state.tagModal.error ? `<p class="text-red-500 text-xs mb-4">${state.tagModal.error}</p>` : ''}
                         <div class="flex justify-end gap-2 mt-4">
@@ -508,13 +523,12 @@
             // 確認操作 Modal
             if (state.confirmDialog.isOpen) {
                 html += `
-                <div class="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/40 backdrop-blur-sm">
-                    <div class="bg-white rounded-lg p-6 w-80 shadow-xl transform transition-all animate-fadeIn">
+                <div class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/40 backdrop-blur-sm px-4">
+                    <div class="bg-white rounded-lg p-6 w-full max-w-sm shadow-xl transform transition-all animate-fadeIn">
                         <h3 class="font-bold text-gray-900 mb-2">確認操作</h3>
                         <p class="text-gray-600 text-sm mb-6">${state.confirmDialog.message}</p>
                         <div class="flex justify-end gap-2">
                             <button onclick="window.closeConfirmDialog()" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors">取消</button>
-                            <!-- 動態套用不同顏色的確認按鈕，增加質感 -->
                             <button onclick="window.executeConfirmAction()" class="px-4 py-2 text-sm ${state.confirmDialog.isPrimary ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'} text-white rounded transition-colors">確定</button>
                         </div>
                     </div>
@@ -544,13 +558,11 @@
 
         // === 5. 事件與業務邏輯 ===
         
-        // 搜尋監聽
         document.getElementById('searchInput').addEventListener('input', (e) => {
             state.searchQuery = e.target.value;
             updateGallery();
         });
 
-        // 左側過濾器
         window.toggleFilter = (type, value) => {
             const current = state.filters[type];
             if (current.includes(value)) state.filters[type] = current.filter(item => item !== value);
@@ -565,7 +577,6 @@
             updateGallery();
         };
 
-        // 企劃板邏輯
         window.toggleMoodBoard = (photoId) => {
             const photo = state.photos.find(p => p.id === photoId) || state.moodBoard.find(p => p.id === photoId);
             if (!photo) return;
@@ -576,7 +587,6 @@
             updateMoodBoard();
         };
 
-        // 新增標籤邏輯
         window.updateNewTagValue = (val) => {
             state.newTagValue = val;
         };
@@ -593,7 +603,6 @@
         };
 
         window.confirmAddTag = async () => {
-            // 直接抓 DOM 值最準確，解決連續輸入問題
             const inputEl = document.getElementById('newTagInput');
             const tag = inputEl ? inputEl.value.trim() : state.newTagValue.trim();
             const type = state.tagModal.type;
@@ -612,9 +621,8 @@
             }
 
             state.categories[type].push(tag);
-            // 同步寫入後端 FireStore 保留紀錄
             if (state.user) {
-                const tagsRef = doc(db, 'artifacts', appId, 'users', state.user.uid, 'settings', 'tags');
+                const tagsRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'tags');
                 await setDoc(tagsRef, state.categories, { merge: true });
             }
             
@@ -623,7 +631,6 @@
             updateFilters();
         };
 
-        // 刪除標籤與照片邏輯
         window.handleDeleteTag = (type, tagToDelete, e) => {
             e.stopPropagation();
             state.confirmDialog = {
@@ -634,7 +641,7 @@
                     state.categories[type] = state.categories[type].filter(t => t !== tagToDelete);
                     state.filters[type] = state.filters[type].filter(t => t !== tagToDelete);
                     if (state.user) {
-                        const tagsRef = doc(db, 'artifacts', appId, 'users', state.user.uid, 'settings', 'tags');
+                        const tagsRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'tags');
                         await setDoc(tagsRef, state.categories, { merge: true });
                     }
                     window.closeConfirmDialog();
@@ -653,7 +660,7 @@
                 isPrimary: false,
                 action: async () => {
                     try {
-                        await deleteDoc(doc(db, 'artifacts', appId, 'users', state.user.uid, 'photos', id));
+                        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'photos', id));
                         state.moodBoard = state.moodBoard.filter(p => p.id !== id);
                         updateMoodBoard();
                     } catch (e) { console.error(e); }
@@ -672,14 +679,13 @@
             if (state.confirmDialog.action) state.confirmDialog.action();
         };
 
-        // 匯出排版資源邏輯 (修正為真實下載 ZIP 行為)
         window.handleExport = () => {
             if (state.moodBoard.length === 0) return;
             
             state.confirmDialog = {
                 isOpen: true,
                 message: `確定要將這 ${state.moodBoard.length} 張素材打包下載為 ZIP 壓縮檔嗎？`,
-                isPrimary: true, // 使用藍色按鈕
+                isPrimary: true,
                 action: async () => {
                     window.closeConfirmDialog();
                     
@@ -690,45 +696,30 @@
                     lucide.createIcons();
 
                     try {
-                        // 呼叫外部套件 JSZip
                         const zip = new JSZip();
-                        
-                        // 等待所有圖片抓取並寫入 zip
                         const promises = state.moodBoard.map(async (photo, index) => {
                             try {
                                 const response = await fetch(photo.url);
                                 const blob = await response.blob();
-                                
-                                // 取出附檔名，如果抓不到就預設 jpg
                                 const ext = blob.type.split('/')[1] || 'jpg';
-                                // 安全的檔案名稱 (移除特殊符號)
                                 const safeTitle = (photo.title || '圖片').replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
-                                
                                 zip.file(`TravelLens_${index + 1}_${safeTitle}.${ext}`, blob);
                             } catch (err) {
                                 console.warn("無法取得此圖片的原始檔案:", photo.url, err);
-                                // 如果遇到跨網域 (CORS) 阻擋，則建立錯誤筆記
                                 zip.file(`Error_圖片_${index + 1}.txt`, `這張圖片因為跨網域安全性被瀏覽器阻擋下載:\n${photo.url}`);
                             }
                         });
 
                         await Promise.all(promises);
-                        
-                        // 產生 ZIP Blob
                         const zipBlob = await zip.generateAsync({ type: 'blob' });
-                        
-                        // 透過 a 標籤觸發真實下載
                         const link = document.createElement('a');
                         link.href = URL.createObjectURL(zipBlob);
                         link.download = 'TravelLens_素材包.zip';
                         document.body.appendChild(link);
                         link.click();
                         document.body.removeChild(link);
-                        
-                        // 清理記憶體
                         URL.revokeObjectURL(link.href);
 
-                        // 匯出後清空企劃板
                         state.moodBoard = [];
                         updateGallery();
                         updateMoodBoard();
@@ -744,20 +735,18 @@
             updateModals();
         };
 
-        // 匯入範例
         window.handleImportSamples = async () => {
             if (!state.user) return;
             state.isLoading = true;
             updateGallery();
             try {
-                const photosRef = collection(db, 'artifacts', appId, 'users', state.user.uid, 'photos');
+                const photosRef = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
                 for (const sample of SAMPLE_PHOTOS) {
                     await addDoc(photosRef, { ...sample, createdAt: Date.now() });
                 }
             } catch (e) { console.error(e); }
         };
 
-        // 壓縮圖片引擎
         const compressImage = (file) => {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -785,7 +774,6 @@
             });
         };
 
-        // 批量上傳邏輯
         window.handleBatchUpload = async (e) => {
             const files = Array.from(e.target.files);
             if (files.length === 0) return;
@@ -807,7 +795,6 @@
                 state.uploadBatch = processedBatch;
                 updateModals();
 
-                // 模擬 AI 處理時間
                 setTimeout(() => {
                     const randomItem = (arr) => arr[Math.floor(Math.random() * arr.length)];
                     state.uploadBatch = state.uploadBatch.map(item => ({
@@ -874,15 +861,12 @@
             }
         };
 
-        // 執行初始載入 (加入密碼鎖檢查)
-        lucide.createIcons(); // 先繪製登入畫面的 icon 圖示
+        lucide.createIcons(); 
         
-        // 如果這個瀏覽器分頁已經登入過，就直接進入系統
         if (sessionStorage.getItem('travelLensAuth') === 'true') {
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('app').classList.remove('hidden');
             initApp();
-            updateUI();
         }
 
     </script>
