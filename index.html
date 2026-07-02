@@ -8,6 +8,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 引入 Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- 引入 JSZip 用於批量下載 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         @keyframes scan { 
             0% { transform: translateY(0); } 
@@ -78,7 +80,7 @@
             </div>
             <div class="p-4 border-t border-gray-100 bg-white">
                 <button id="exportBtn" onclick="window.handleExport()" disabled class="w-full py-2.5 rounded-md text-sm font-medium transition-colors bg-gray-100 text-gray-400 cursor-not-allowed">
-                    匯出排版資源
+                    匯出排版資源 (ZIP)
                 </button>
             </div>
         </aside>
@@ -165,7 +167,8 @@
                 const tagsRef = doc(db, 'artifacts', appId, 'users', state.user.uid, 'settings', 'tags');
                 unsubTags = onSnapshot(tagsRef, (docSnap) => {
                     if (docSnap.exists()) {
-                        state.categories = docSnap.data();
+                        // 確保原本的分類不會因為後端資料不齊全而消失，利用展開運算符合併
+                        state.categories = { ...state.categories, ...docSnap.data() };
                         updateFilters();
                         updateModals();
                     }
@@ -183,7 +186,6 @@
                     console.error("Fetch photos error:", error);
                     state.isLoading = false;
                     
-                    // 顯示巨大的權限錯誤提示，教導使用者如何修改規則
                     if (error.code === 'permission-denied') {
                         document.getElementById('gallery-container').innerHTML = `
                             <div class="h-full flex flex-col items-center justify-center px-6 text-center animate-fadeIn">
@@ -246,7 +248,7 @@
                         <button onclick="window.openAddTagModal('${sec.id}')" class="text-gray-400 hover:text-${sec.color}-600 bg-gray-100 hover:bg-${sec.color}-50 p-1 rounded-full transition-colors" title="新增標籤"><i data-lucide="plus" class="w-3 h-3"></i></button>
                     </h3>
                 `;
-                state.categories[sec.id].forEach(cat => {
+                (state.categories[sec.id] || []).forEach(cat => {
                     const isChecked = state.filters[sec.id].includes(cat);
                     html += `
                     <div class="flex items-center justify-between group mb-2">
@@ -269,7 +271,7 @@
         function renderGallery() {
             const container = document.getElementById('gallery-container');
             const stats = document.getElementById('gallery-stats');
-            // 如果已經被 permission-denied 覆蓋就不重繪
+            
             if (container.innerHTML.includes('資料庫權限被阻擋')) return;
 
             const filteredPhotos = state.photos.filter(photo => {
@@ -452,7 +454,8 @@
                 <div class="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/40 backdrop-blur-sm">
                     <div class="bg-white rounded-lg p-6 w-80 shadow-xl transform transition-all animate-fadeIn">
                         <h3 class="font-bold text-gray-900 mb-4">新增自訂標籤</h3>
-                        <input type="text" id="newTagInput" value="${state.newTagValue}" oninput="state.newTagValue = this.value" onkeydown="if(event.key === 'Enter') window.confirmAddTag()" placeholder="請輸入標籤名稱..." class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-2" />
+                        <!-- 修正 BUG：改用全域函數 updateNewTagValue() 同步，防止 ReferenceError -->
+                        <input type="text" id="newTagInput" value="${state.newTagValue}" oninput="window.updateNewTagValue(this.value)" onkeydown="if(event.key === 'Enter') window.confirmAddTag()" placeholder="請輸入標籤名稱..." class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-2" />
                         ${state.tagModal.error ? `<p class="text-red-500 text-xs mb-4">${state.tagModal.error}</p>` : ''}
                         <div class="flex justify-end gap-2 mt-4">
                             <button onclick="window.closeTagModal()" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors">取消</button>
@@ -462,7 +465,7 @@
                 </div>`;
             }
 
-            // 確認刪除 Modal
+            // 確認操作 Modal
             if (state.confirmDialog.isOpen) {
                 html += `
                 <div class="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/40 backdrop-blur-sm">
@@ -471,7 +474,8 @@
                         <p class="text-gray-600 text-sm mb-6">${state.confirmDialog.message}</p>
                         <div class="flex justify-end gap-2">
                             <button onclick="window.closeConfirmDialog()" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors">取消</button>
-                            <button onclick="window.executeConfirmAction()" class="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors">確定</button>
+                            <!-- 動態套用不同顏色的確認按鈕，增加質感 -->
+                            <button onclick="window.executeConfirmAction()" class="px-4 py-2 text-sm ${state.confirmDialog.isPrimary ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'} text-white rounded transition-colors">確定</button>
                         </div>
                     </div>
                 </div>`;
@@ -479,7 +483,6 @@
 
             container.innerHTML = html;
 
-            // 如果打開 Tag Modal，自動 Focus Input
             if (state.tagModal.isOpen) {
                 setTimeout(() => document.getElementById('newTagInput')?.focus(), 10);
             }
@@ -504,7 +507,7 @@
         // 搜尋監聽
         document.getElementById('searchInput').addEventListener('input', (e) => {
             state.searchQuery = e.target.value;
-            updateGallery(); // 僅更新照片網格，避免輸入框失焦
+            updateGallery();
         });
 
         // 左側過濾器
@@ -534,6 +537,10 @@
         };
 
         // 新增標籤邏輯
+        window.updateNewTagValue = (val) => {
+            state.newTagValue = val;
+        };
+
         window.openAddTagModal = (type) => {
             state.tagModal = { isOpen: true, type: type, error: '' };
             state.newTagValue = '';
@@ -546,13 +553,18 @@
         };
 
         window.confirmAddTag = async () => {
+            // 直接抓 DOM 值最準確，解決連續輸入問題
+            const inputEl = document.getElementById('newTagInput');
+            const tag = inputEl ? inputEl.value.trim() : state.newTagValue.trim();
             const type = state.tagModal.type;
-            const tag = state.newTagValue.trim();
+            
             if (!tag) {
                 state.tagModal.error = '標籤名稱不能為空';
                 updateModals();
                 return;
             }
+            if (!state.categories[type]) state.categories[type] = [];
+            
             if (state.categories[type].includes(tag)) {
                 state.tagModal.error = '該標籤已經存在！';
                 updateModals();
@@ -560,10 +572,12 @@
             }
 
             state.categories[type].push(tag);
+            // 同步寫入後端 FireStore 保留紀錄
             if (state.user) {
                 const tagsRef = doc(db, 'artifacts', appId, 'users', state.user.uid, 'settings', 'tags');
                 await setDoc(tagsRef, state.categories, { merge: true });
             }
+            
             state.tagModal.isOpen = false;
             updateModals();
             updateFilters();
@@ -575,6 +589,7 @@
             state.confirmDialog = {
                 isOpen: true,
                 message: `確定要刪除「${tagToDelete}」這個標籤嗎？`,
+                isPrimary: false,
                 action: async () => {
                     state.categories[type] = state.categories[type].filter(t => t !== tagToDelete);
                     state.filters[type] = state.filters[type].filter(t => t !== tagToDelete);
@@ -595,6 +610,7 @@
             state.confirmDialog = {
                 isOpen: true,
                 message: "確定要刪除這張照片嗎？",
+                isPrimary: false,
                 action: async () => {
                     try {
                         await deleteDoc(doc(db, 'artifacts', appId, 'users', state.user.uid, 'photos', id));
@@ -608,7 +624,7 @@
         };
 
         window.closeConfirmDialog = () => {
-            state.confirmDialog = { isOpen: false, message: '', action: null };
+            state.confirmDialog = { isOpen: false, message: '', action: null, isPrimary: false };
             updateModals();
         };
 
@@ -616,19 +632,73 @@
             if (state.confirmDialog.action) state.confirmDialog.action();
         };
 
-        // 匯出排版資源邏輯 (新增)
+        // 匯出排版資源邏輯 (修正為真實下載 ZIP 行為)
         window.handleExport = () => {
             if (state.moodBoard.length === 0) return;
             
             state.confirmDialog = {
                 isOpen: true,
-                message: `確定要將這 ${state.moodBoard.length} 張素材打包匯出嗎？\n\n(此為模擬功能，實務上這裡會觸發下載 ZIP 壓縮檔，或直接透過 API 將圖片匯入 InDesign 等排版軟體)`,
-                action: () => {
-                    // 模擬匯出後清空企劃板
-                    state.moodBoard = [];
+                message: `確定要將這 ${state.moodBoard.length} 張素材打包下載為 ZIP 壓縮檔嗎？`,
+                isPrimary: true, // 使用藍色按鈕
+                action: async () => {
                     window.closeConfirmDialog();
-                    updateGallery();
-                    updateMoodBoard();
+                    
+                    const exportBtn = document.getElementById('exportBtn');
+                    const originalText = exportBtn.innerText;
+                    exportBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin inline mr-1"></i> 打包下載中...';
+                    exportBtn.disabled = true;
+                    lucide.createIcons();
+
+                    try {
+                        // 呼叫外部套件 JSZip
+                        const zip = new JSZip();
+                        
+                        // 等待所有圖片抓取並寫入 zip
+                        const promises = state.moodBoard.map(async (photo, index) => {
+                            try {
+                                const response = await fetch(photo.url);
+                                const blob = await response.blob();
+                                
+                                // 取出附檔名，如果抓不到就預設 jpg
+                                const ext = blob.type.split('/')[1] || 'jpg';
+                                // 安全的檔案名稱 (移除特殊符號)
+                                const safeTitle = (photo.title || '圖片').replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
+                                
+                                zip.file(`TravelLens_${index + 1}_${safeTitle}.${ext}`, blob);
+                            } catch (err) {
+                                console.warn("無法取得此圖片的原始檔案:", photo.url, err);
+                                // 如果遇到跨網域 (CORS) 阻擋，則建立錯誤筆記
+                                zip.file(`Error_圖片_${index + 1}.txt`, `這張圖片因為跨網域安全性被瀏覽器阻擋下載:\n${photo.url}`);
+                            }
+                        });
+
+                        await Promise.all(promises);
+                        
+                        // 產生 ZIP Blob
+                        const zipBlob = await zip.generateAsync({ type: 'blob' });
+                        
+                        // 透過 a 標籤觸發真實下載
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(zipBlob);
+                        link.download = 'TravelLens_素材包.zip';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        
+                        // 清理記憶體
+                        URL.revokeObjectURL(link.href);
+
+                        // 匯出後清空企劃板
+                        state.moodBoard = [];
+                        updateGallery();
+                        updateMoodBoard();
+                    } catch (error) {
+                        console.error('打包下載發生錯誤:', error);
+                        alert('下載過程發生錯誤，請稍後再試。');
+                    } finally {
+                        exportBtn.innerText = originalText;
+                        exportBtn.disabled = false;
+                    }
                 }
             };
             updateModals();
@@ -704,9 +774,9 @@
                         ...item,
                         suggestions: {
                             title: randomItem(['旅行碎片', '質感光影', '街角隨拍', '壯闊視野', '美食探索']) + ' - ' + item.originalName.substring(0, 4),
-                            content: randomItem(state.categories.content),
-                            design: randomItem(state.categories.design),
-                            location: randomItem(state.categories.location)
+                            content: randomItem(state.categories.content || []),
+                            design: randomItem(state.categories.design || []),
+                            location: randomItem(state.categories.location || [])
                         }
                     }));
                     state.batchStatus = 'review';
@@ -725,7 +795,6 @@
         window.updateBatchItem = (id, field, value) => {
             const item = state.uploadBatch.find(i => i.id === id);
             if (item) item.suggestions[field] = value;
-            // 避免焦點丟失，此處不重新 renderModals()
         };
 
         window.removeBatchItem = (id) => {
