@@ -4,26 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TravelLens 旅遊視覺資產管理</title>
-    <!-- 引入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 引入 Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- 引入 JSZip 用於批量下載 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
-        @keyframes scan { 
-            0% { transform: translateY(0); } 
-            100% { transform: translateY(120px); } 
-        }
-        @keyframes fadeIn { 
-            from { opacity: 0; transform: translateY(10px); } 
-            to { opacity: 1; transform: translateY(0); } 
-        }
+        @keyframes scan { 0% { transform: translateY(0); } 100% { transform: translateY(120px); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fadeIn { animation: fadeIn 0.2s ease-out forwards; }
         .scan-line { animation: scan 1.5s ease-in-out infinite alternate; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        /* 隱藏原生 details 的標記 */
+        details > summary { list-style: none; }
+        details > summary::-webkit-details-marker { display: none; }
     </style>
 </head>
-<body class="bg-gray-50 font-sans text-gray-800"> <!-- 移除 overflow-hidden 讓手機可以上下滑動 -->
+<body class="bg-gray-50 font-sans text-gray-800">
 
     <!-- === 系統登入護城河 === -->
     <div id="login-screen" class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 backdrop-blur-md transition-opacity duration-300 px-4">
@@ -43,60 +41,64 @@
         </div>
     </div>
 
-    <!-- 加入響應式設計：手機版改為上下排列 (flex-col)，電腦版維持左右 (md:flex-row) -->
+    <!-- 系統主體 -->
     <div class="flex flex-col md:flex-row min-h-screen relative hidden" id="app">
-        <!-- 1. 左側過濾面板 (手機版限制最高高度並可內部滑動) -->
+        <!-- 1. 左側過濾面板 -->
         <aside class="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-gray-200 flex flex-col h-auto md:h-screen shrink-0 z-10">
             <div class="p-5 border-b border-gray-100 shrink-0">
                 <h1 class="text-xl font-bold tracking-wider text-gray-900 flex items-center gap-2">
                     <i data-lucide="sparkles" class="text-blue-600 w-5 h-5"></i> TravelLens
                 </h1>
-                <div id="auth-status" class="mt-2 text-xs font-medium">
-                    <!-- Auth status rendered here -->
-                </div>
+                <div id="auth-status" class="mt-2 text-xs font-medium"></div>
             </div>
             <div class="p-5 flex-1 overflow-y-auto max-h-[40vh] md:max-h-none">
                 <div class="relative mb-6">
                     <input type="text" id="searchInput" placeholder="搜尋關鍵字..." class="w-full pl-9 pr-3 py-2 bg-gray-100 border-transparent rounded-md text-sm focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all" />
                     <i data-lucide="search" class="absolute left-3 top-2.5 text-gray-400 w-4 h-4"></i>
                 </div>
-                <div id="filters-container">
-                    <!-- Filters rendered here -->
-                </div>
+                <div id="filters-container"></div>
             </div>
         </aside>
 
-        <!-- 2. 中央照片網格 (手機版保證一定高度) -->
+        <!-- 2. 中央照片網格 -->
         <main class="w-full md:flex-1 flex flex-col h-[70vh] md:h-screen overflow-hidden z-10 bg-gray-50 shrink-0">
             <header class="h-auto md:h-16 py-3 md:py-0 bg-white border-b border-gray-200 flex flex-col md:flex-row items-center justify-between px-6 shrink-0 gap-3 md:gap-0">
-                <div id="gallery-stats" class="flex items-center gap-2 text-sm text-gray-500">
-                    <!-- Stats rendered here -->
-                </div>
+                <div id="gallery-stats" class="flex items-center gap-2 text-sm text-gray-500"></div>
                 <div class="flex items-center gap-4">
                     <button onclick="window.clearFilters()" class="text-sm text-gray-500 hover:text-gray-800 transition-colors">清除條件</button>
                     <input type="file" accept="image/*" multiple class="hidden" id="fileInput" onchange="window.handleBatchUpload(event)" />
-                    <button id="uploadBtn" onclick="document.getElementById('fileInput').click()" disabled class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-sm whitespace-nowrap">
+                    <button id="uploadBtn" onclick="document.getElementById('fileInput').click()" disabled class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-sm whitespace-nowrap cursor-pointer">
                         <i data-lucide="layers" class="w-4 h-4"></i> 批量上傳
                     </button>
                 </div>
             </header>
-            <div id="gallery-container" class="flex-1 overflow-y-auto p-4 md:p-6">
-                <!-- Photos rendered here -->
-            </div>
+            <div id="gallery-container" class="flex-1 overflow-y-auto p-4 md:p-6"></div>
         </main>
 
         <!-- 3. 右側企劃板 -->
         <aside class="w-full md:w-72 bg-white border-t md:border-t-0 md:border-l border-gray-200 flex flex-col h-auto md:h-screen shadow-none md:shadow-[-4px_0_15px_-3px_rgba(0,0,0,0.05)] z-10 shrink-0">
             <div class="p-5 border-b border-gray-100 bg-gray-50/50 shrink-0">
-                <h2 class="text-lg font-bold text-gray-900 flex items-center justify-between">
-                    本期雜誌企劃板
+                <h2 class="text-lg font-bold text-gray-900 flex items-center justify-between mb-3">
+                    專案排版資源夾
                     <span id="moodboard-count" class="bg-blue-100 text-blue-700 text-xs py-0.5 px-2 rounded-full">0 張</span>
                 </h2>
-                <p class="text-xs text-gray-500 mt-1">挑選好的排版素材</p>
+                <!-- 修改區：年份與期數設定 -->
+                <div class="flex gap-2">
+                    <div class="flex-1">
+                        <label class="block text-[10px] text-gray-400 font-bold mb-1 uppercase">發行年份</label>
+                        <select id="project-year" class="w-full bg-white border border-gray-200 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 outline-none">
+                            <option value="2026" selected>2026</option>
+                            <option value="2027">2027</option>
+                            <option value="2028">2028</option>
+                        </select>
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-[10px] text-gray-400 font-bold mb-1 uppercase">雜誌期數</label>
+                        <input type="text" id="project-issue" placeholder="Vol.12" class="w-full bg-white border border-gray-200 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 outline-none" />
+                    </div>
+                </div>
             </div>
-            <div id="moodboard-items" class="flex-1 overflow-y-auto p-4 space-y-4 max-h-[40vh] md:max-h-none">
-                <!-- Moodboard items rendered here -->
-            </div>
+            <div id="moodboard-items" class="flex-1 overflow-y-auto p-4 space-y-4 max-h-[40vh] md:max-h-none"></div>
             <div class="p-4 border-t border-gray-100 bg-white shrink-0">
                 <button id="exportBtn" onclick="window.handleExport()" disabled class="w-full py-2.5 rounded-md text-sm font-medium transition-colors bg-gray-100 text-gray-400 cursor-not-allowed">
                     匯出排版資源 (ZIP)
@@ -114,7 +116,6 @@
         import { getAuth, signInAnonymously, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
         import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, setDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
-        // === 1. 初始化 Firebase ===
         const firebaseConfig = typeof __firebase_config !== 'undefined' && __firebase_config ? JSON.parse(__firebase_config) : {
             apiKey: "AIzaSyDhAILsfNhhf-WdeJa-utgz_PVy6zARVHA",
             authDomain: "photo-e8d53.firebaseapp.com",
@@ -128,263 +129,271 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        
-        // 確保未來部署到 GitHub 後有預設的房號，但在預覽環境遵守其安全規則
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'travel-lens-prod';
 
-        // === 2. 初始靜態資料與狀態管理 ===
         const SAMPLE_PHOTOS = [
-            { url: 'https://images.unsplash.com/photo-1493770348161-369560ae357d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: '精緻早午餐特寫', content: '餐飲與美食', design: '質感特寫', location: '法國巴黎' },
-            { url: 'https://images.unsplash.com/photo-1499856871958-5b9627545d1a?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: '塞納河畔日落', content: '自然與人文', design: '主視覺 (大圖)', location: '法國巴黎' },
-            { url: 'https://images.unsplash.com/photo-1480796927426-f609979314bd?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: '東京新宿街頭', content: '景點與娛樂', design: '情境氛圍', location: '日本東京' },
-            { url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: '壯麗群山雲海', content: '自然與人文', design: '主視覺 (大圖)', location: '台灣花蓮' }
+            { url: 'https://images.unsplash.com/photo-1493770348161-369560ae357d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: '法國巴黎-餐飲與美食-2026-Vol.12', content: '餐飲與美食', year: '2026', issue: 'Vol.12', locationCity: '法國-巴黎', locationDist: '' },
+            { url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: '台灣花蓮-自然與人文-2026-Vol.13', content: '自然與人文', year: '2026', issue: 'Vol.13', locationCity: '台灣-花蓮', locationDist: '秀林鄉' }
         ];
 
         const state = {
             user: null,
             photos: [],
             categories: {
-                content: ['景點與娛樂', '餐飲與美食', '住宿與交通', '自然與人文'],
-                design: ['主視覺 (大圖)', '情境氛圍', '質感特寫'],
-                location: ['日本東京', '日本北海道', '法國巴黎', '台灣花蓮', '台灣墾丁', '未定位']
+                content: ['景點與娛樂', '餐飲與美食', '住宿與交通', '自然與人文'], 
+                year: ['2026', '2027', '2028'],
+                issue: ['Vol.12', 'Vol.13', 'Vol.14'],
+                // 將地點改為樹狀結構： { "台灣-花蓮": ["花蓮市", "秀林鄉"], "日本-東京": ["新宿區"] }
+                locationHierarchy: {
+                    '台灣-花蓮': ['花蓮市', '吉安鄉', '秀林鄉'],
+                    '台灣-墾丁': ['恆春鎮'],
+                    '日本-東京': ['新宿區', '澀谷區'],
+                    '日本-北海道': [],
+                    '法國-巴黎': []
+                }
             },
             searchQuery: '',
-            filters: { content: [], design: [], location: [] },
+            filters: { content: [], year: [], issue: [], locationCity: [], locationDist: [] },
             moodBoard: [],
             isLoading: true,
             isBatchModalOpen: false,
             batchStatus: 'idle',
             uploadBatch: [],
-            tagModal: { isOpen: false, type: '', error: '' },
+            tagModal: { isOpen: false, type: '', error: '', parentCity: '' },
             newTagValue: '',
-            confirmDialog: { isOpen: false, message: '', action: null }
+            confirmDialog: { isOpen: false, message: '', action: null },
+            editModal: { isOpen: false, photo: null }
         };
 
         let unsubTags = null;
         let unsubPhotos = null;
 
-        // === 密碼登入與防暴力破解邏輯 ===
         window.handleLogin = (e) => {
             e.preventDefault();
             const now = Date.now();
             const lockoutUntil = parseInt(localStorage.getItem('travelLensLockout') || '0', 10);
-            
             if (now < lockoutUntil) {
                 const remaining = Math.ceil((lockoutUntil - now) / 1000);
-                showLoginError(`嘗試次數過多，請等待 ${remaining} 秒後再試。`);
-                return;
+                showLoginError(`嘗試次數過多，請等待 ${remaining} 秒後再試。`); return;
             }
-
             const pwd = document.getElementById('password-input').value;
-            const EXPECTED_PWD = 'Travel@2026!'; 
-
-            if (pwd === EXPECTED_PWD) {
-                localStorage.removeItem('travelLensAttempts');
-                localStorage.removeItem('travelLensLockout');
-                // 已移除 sessionStorage，所以重新整理一定會需要再次登入
-                
-                document.getElementById('login-screen').classList.add('hidden');
-                document.getElementById('app').classList.remove('hidden');
-                
-                initApp();
-                updateUI();
+            if (pwd === 'Travel@2026!') {
+                localStorage.removeItem('travelLensAttempts'); localStorage.removeItem('travelLensLockout');
+                document.getElementById('login-screen').classList.add('hidden'); document.getElementById('app').classList.remove('hidden');
+                initApp(); updateUI();
             } else {
                 let attempts = parseInt(localStorage.getItem('travelLensAttempts') || '0', 10) + 1;
                 localStorage.setItem('travelLensAttempts', attempts);
-
                 if (attempts >= 5) {
-                    const lockTime = now + 3 * 60 * 1000; 
-                    localStorage.setItem('travelLensLockout', lockTime);
+                    localStorage.setItem('travelLensLockout', now + 3 * 60 * 1000);
                     showLoginError(`密碼錯誤達 5 次，系統鎖定 3 分鐘。`);
-                } else {
-                    showLoginError(`密碼錯誤，剩餘 ${5 - attempts} 次機會。`);
-                }
+                } else showLoginError(`密碼錯誤，剩餘 ${5 - attempts} 次機會。`);
             }
         };
 
         function showLoginError(msg) {
-            const errEl = document.getElementById('login-error');
-            errEl.innerText = msg;
-            errEl.classList.remove('hidden');
-            document.getElementById('password-input').value = '';
-            document.getElementById('password-input').focus();
+            const errEl = document.getElementById('login-error'); errEl.innerText = msg; errEl.classList.remove('hidden');
+            document.getElementById('password-input').value = ''; document.getElementById('password-input').focus();
         }
 
-        // === 3. 雙重防護連線 ===
         async function initApp() {
             let localUid = localStorage.getItem('travelLensUid');
-            
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    const userCred = await signInWithCustomToken(auth, __initial_auth_token);
-                    localUid = userCred.user.uid;
+                    const userCred = await signInWithCustomToken(auth, __initial_auth_token); localUid = userCred.user.uid;
                 } else {
-                    const userCred = await signInAnonymously(auth);
-                    localUid = userCred.user.uid;
+                    const userCred = await signInAnonymously(auth); localUid = userCred.user.uid;
                 }
                 localStorage.setItem('travelLensUid', localUid);
             } catch (authError) {
-                console.warn("認證失敗，降級為本機模式", authError);
-                if (!localUid) {
-                    localUid = 'user-' + Math.random().toString(36).substr(2, 9);
-                    localStorage.setItem('travelLensUid', localUid);
-                }
+                console.warn("認證失敗", authError);
+                if (!localUid) { localUid = 'user-' + Math.random().toString(36).substr(2, 9); localStorage.setItem('travelLensUid', localUid); }
             }
-            
-            state.user = { uid: localUid };
-            updateUI();
-
+            state.user = { uid: localUid }; updateUI();
             try {
-                const tagsRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'tags');
+                const tagsRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'tags_v2');
                 unsubTags = onSnapshot(tagsRef, (docSnap) => {
-                    if (docSnap.exists()) {
-                        state.categories = { ...state.categories, ...docSnap.data() };
-                        updateFilters();
-                        updateModals();
-                    }
+                    if (docSnap.exists()) { state.categories = { ...state.categories, ...docSnap.data() }; updateFilters(); updateModals(); }
                 });
-
                 const photosRef = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
                 unsubPhotos = onSnapshot(photosRef, (snapshot) => {
                     const fetchedPhotos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     fetchedPhotos.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-                    state.photos = fetchedPhotos;
-                    state.isLoading = false;
-                    updateGallery();
-                    updateMoodBoard();
+                    state.photos = fetchedPhotos; state.isLoading = false; updateGallery(); updateMoodBoard();
                 }, (error) => {
-                    console.error("Fetch photos error:", error);
-                    state.isLoading = false;
-                    
+                    console.error("Fetch photos error:", error); state.isLoading = false;
                     if (error.code === 'permission-denied') {
-                        document.getElementById('gallery-container').innerHTML = `
-                            <div class="h-full flex flex-col items-center justify-center px-6 text-center animate-fadeIn">
-                                <i data-lucide="shield-alert" class="w-20 h-20 mb-4 text-red-500"></i>
-                                <h2 class="font-bold text-2xl mb-2 text-gray-800">資料庫連線權限異常</h2>
-                                <p class="text-gray-600 mb-6 font-medium">如果是部署至外部伺服器發生此錯誤，請確認 Firebase Rules 已正確設定為 allow read, write: if true;。</p>
-                            </div>`;
-                        lucide.createIcons();
-                    } else {
-                        updateGallery();
-                    }
+                        document.getElementById('gallery-container').innerHTML = `<div class="h-full flex flex-col items-center justify-center px-6 text-center animate-fadeIn"><i data-lucide="shield-alert" class="w-20 h-20 mb-4 text-red-500"></i><h2 class="font-bold text-2xl mb-2 text-gray-800">資料庫連線權限異常</h2></div>`; lucide.createIcons();
+                    } else updateGallery();
                 });
-            } catch (err) {
-                console.error("Firestore Init Error:", err);
-            }
+            } catch (err) { console.error("Firestore Init Error:", err); }
         }
 
-        // === 4. DOM 渲染函數 ===
         function renderAuthStatus() {
-            const el = document.getElementById('auth-status');
-            const btn = document.getElementById('uploadBtn');
-
+            const el = document.getElementById('auth-status'); const btn = document.getElementById('uploadBtn');
             if (state.user) {
                 el.innerHTML = `<span class="flex items-center text-green-600 bg-green-50 px-2 py-1 rounded-full"><i data-lucide="cloud" class="w-3 h-3 mr-1"></i> 雲端已連線</span>`;
-                btn.disabled = false;
+                if (btn) btn.disabled = false;
             } else {
                 el.innerHTML = `<span class="flex items-center text-red-500 bg-red-50 px-2 py-1 rounded-full"><i data-lucide="cloud-off" class="w-3 h-3 mr-1"></i> 雲端連線中...</span>`;
-                btn.disabled = true;
+                if (btn) btn.disabled = true;
             }
         }
 
         function renderFilters() {
             const container = document.getElementById('filters-container');
             let html = '';
-            const sections = [
-                { id: 'content', title: '內容與體驗', icon: 'bookmark', color: 'blue' },
-                { id: 'design', title: '版面設計功能', icon: 'layout-template', color: 'purple' },
-                { id: 'location', title: '地理位置', icon: 'map-pin', color: 'green' }
-            ];
-
-            sections.forEach(sec => {
+            
+            // 1. 內容與體驗
+            html += renderFilterSection('content', '內容與體驗', 'bookmark', 'blue', state.categories.content);
+            // 2. 年份與期數 (移至左側供篩選)
+            html += renderFilterSection('year', '發行年份', 'calendar', 'purple', state.categories.year);
+            html += renderFilterSection('issue', '雜誌期數', 'book-open', 'orange', state.categories.issue);
+            
+            // 3. 巢狀地理位置
+            html += `
+            <div class="mb-6">
+                <h3 class="text-sm font-semibold text-gray-900 mb-3 flex items-center justify-between">
+                    <div class="flex items-center gap-2"><i data-lucide="map-pin" class="text-green-500 w-4 h-4"></i> 地理位置 (巢狀)</div>
+                    <button onclick="window.openAddTagModal('locationCity')" class="text-gray-400 hover:text-green-600 bg-gray-100 hover:bg-green-50 p-1 rounded-full transition-colors" title="新增國家/縣市"><i data-lucide="plus" class="w-3 h-3"></i></button>
+                </h3>
+            `;
+            
+            Object.keys(state.categories.locationHierarchy).forEach(city => {
+                const dists = state.categories.locationHierarchy[city];
+                const isCityChecked = state.filters.locationCity.includes(city);
+                
                 html += `
-                <div class="mb-6">
-                    <h3 class="text-sm font-semibold text-gray-900 mb-3 flex items-center justify-between">
-                        <div class="flex items-center gap-2"><i data-lucide="${sec.icon}" class="text-${sec.color}-500 w-4 h-4"></i> ${sec.title}</div>
-                        <button onclick="window.openAddTagModal('${sec.id}')" class="text-gray-400 hover:text-${sec.color}-600 bg-gray-100 hover:bg-${sec.color}-50 p-1 rounded-full transition-colors" title="新增標籤"><i data-lucide="plus" class="w-3 h-3"></i></button>
-                    </h3>
+                <details class="mb-2 group/details">
+                    <summary class="flex items-center justify-between cursor-pointer py-1 hover:bg-gray-50 rounded select-none">
+                        <div class="flex items-center gap-2 flex-1 pl-1">
+                            <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-gray-400 transition-transform group-open/details:rotate-90"></i>
+                            <label class="flex items-center space-x-2 cursor-pointer flex-1" onclick="event.stopPropagation(); window.toggleFilter('locationCity', '${city}')">
+                                <div class="w-4 h-4 rounded border flex items-center justify-center transition-colors ${isCityChecked ? 'bg-green-600 border-green-600' : 'border-gray-300 hover:border-green-500'}">
+                                    ${isCityChecked ? '<i data-lucide="check" class="text-white w-3 h-3"></i>' : ''}
+                                </div>
+                                <span class="text-sm font-medium ${isCityChecked ? 'text-green-700' : 'text-gray-700'}">${city}</span>
+                            </label>
+                        </div>
+                        <div class="flex items-center gap-1 opacity-0 group-hover/details:opacity-100">
+                            <button onclick="event.preventDefault(); window.openAddTagModal('locationDist', '${city}')" class="text-gray-400 hover:text-green-600 p-1" title="在此新增鄉鎮區"><i data-lucide="plus" class="w-3 h-3"></i></button>
+                            <button onclick="event.preventDefault(); window.handleDeleteTag('locationCity', '${city}')" class="text-gray-400 hover:text-red-500 p-1" title="刪除"><i data-lucide="x" class="w-3 h-3"></i></button>
+                        </div>
+                    </summary>
+                    <div class="pl-7 mt-1 space-y-1">
                 `;
-                (state.categories[sec.id] || []).forEach(cat => {
-                    const isChecked = state.filters[sec.id].includes(cat);
-                    html += `
-                    <div class="flex items-center justify-between group mb-2">
-                        <label class="flex items-center space-x-2 cursor-pointer flex-1" onclick="event.preventDefault(); window.toggleFilter('${sec.id}', '${cat}')">
-                            <div class="w-4 h-4 rounded border flex items-center justify-center transition-colors ${isChecked ? 'bg-blue-600 border-blue-600' : 'border-gray-300 group-hover:border-blue-500'}">
-                                ${isChecked ? '<i data-lucide="check" class="text-white w-3 h-3"></i>' : ''}
-                            </div>
-                            <span class="text-sm text-gray-700">${cat}</span>
-                        </label>
-                        <button onclick="window.handleDeleteTag('${sec.id}', '${cat}', event)" class="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded" title="刪除標籤">
-                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
-                        </button>
-                    </div>`;
-                });
-                html += `</div>`;
+                
+                if (dists.length === 0) {
+                    html += `<p class="text-xs text-gray-400 italic pl-6 py-1">無子區域</p>`;
+                } else {
+                    dists.forEach(dist => {
+                        const isDistChecked = state.filters.locationDist.includes(`${city}|${dist}`);
+                        html += `
+                        <div class="flex items-center justify-between group py-0.5">
+                            <label class="flex items-center space-x-2 cursor-pointer flex-1 pl-1" onclick="event.preventDefault(); window.toggleFilter('locationDist', '${city}|${dist}')">
+                                <div class="w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors ${isDistChecked ? 'bg-green-500 border-green-500' : 'border-gray-300 hover:border-green-400'}">
+                                    ${isDistChecked ? '<i data-lucide="check" class="text-white w-2.5 h-2.5"></i>' : ''}
+                                </div>
+                                <span class="text-sm text-gray-600">${dist}</span>
+                            </label>
+                            <button onclick="window.handleDeleteTag('locationDist', '${city}|${dist}', event)" class="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 p-1"><i data-lucide="x" class="w-3 h-3"></i></button>
+                        </div>`;
+                    });
+                }
+                html += `</div></details>`;
             });
+            html += `</div>`;
             container.innerHTML = html;
+        }
+
+        function renderFilterSection(id, title, icon, color, options) {
+            let html = `
+            <div class="mb-6">
+                <h3 class="text-sm font-semibold text-gray-900 mb-3 flex items-center justify-between">
+                    <div class="flex items-center gap-2"><i data-lucide="${icon}" class="text-${color}-500 w-4 h-4"></i> ${title}</div>
+                    <button onclick="window.openAddTagModal('${id}')" class="text-gray-400 hover:text-${color}-600 bg-gray-100 hover:bg-${color}-50 p-1 rounded-full transition-colors" title="新增標籤"><i data-lucide="plus" class="w-3 h-3"></i></button>
+                </h3>
+            `;
+            (options || []).forEach(cat => {
+                const isChecked = state.filters[id].includes(cat);
+                html += `
+                <div class="flex items-center justify-between group mb-2 pl-1">
+                    <label class="flex items-center space-x-2 cursor-pointer flex-1" onclick="event.preventDefault(); window.toggleFilter('${id}', '${cat}')">
+                        <div class="w-4 h-4 rounded border flex items-center justify-center transition-colors ${isChecked ? `bg-${color}-600 border-${color}-600` : `border-gray-300 group-hover:border-${color}-500`}">
+                            ${isChecked ? '<i data-lucide="check" class="text-white w-3 h-3"></i>' : ''}
+                        </div>
+                        <span class="text-sm text-gray-700">${cat}</span>
+                    </label>
+                    <button onclick="window.handleDeleteTag('${id}', '${cat}', event)" class="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded" title="刪除標籤">
+                        <i data-lucide="x" class="w-3 h-3"></i>
+                    </button>
+                </div>`;
+            });
+            html += `</div>`;
+            return html;
         }
 
         function renderGallery() {
             const container = document.getElementById('gallery-container');
             const stats = document.getElementById('gallery-stats');
-            
             if (container.innerHTML.includes('資料庫連線權限異常')) return;
 
             const filteredPhotos = state.photos.filter(photo => {
-                const matchSearch = photo.title.toLowerCase().includes(state.searchQuery.toLowerCase()) || (photo.location && photo.location.toLowerCase().includes(state.searchQuery.toLowerCase()));
+                const matchSearch = photo.title.toLowerCase().includes(state.searchQuery.toLowerCase()) || 
+                                    (photo.locationCity && photo.locationCity.toLowerCase().includes(state.searchQuery.toLowerCase())) ||
+                                    (photo.locationDist && photo.locationDist.toLowerCase().includes(state.searchQuery.toLowerCase()));
                 const matchContent = state.filters.content.length === 0 || state.filters.content.includes(photo.content);
-                const matchDesign = state.filters.design.length === 0 || state.filters.design.includes(photo.design);
-                const matchLocation = state.filters.location.length === 0 || state.filters.location.includes(photo.location);
-                return matchSearch && matchContent && matchDesign && matchLocation;
+                const matchYear = state.filters.year.length === 0 || state.filters.year.includes(photo.year);
+                const matchIssue = state.filters.issue.length === 0 || state.filters.issue.includes(photo.issue);
+                
+                // 巢狀地點過濾邏輯
+                let matchLocation = true;
+                if (state.filters.locationCity.length > 0 || state.filters.locationDist.length > 0) {
+                    const cityMatch = state.filters.locationCity.includes(photo.locationCity);
+                    const distMatch = state.filters.locationDist.includes(`${photo.locationCity}|${photo.locationDist}`);
+                    matchLocation = cityMatch || distMatch;
+                }
+                
+                return matchSearch && matchContent && matchYear && matchIssue && matchLocation;
             });
 
-            stats.innerHTML = `<i data-lucide="filter" class="w-4 h-4"></i> 雲端共 ${state.photos.length} 張 / 篩選出 ${filteredPhotos.length} 張`;
+            stats.innerHTML = `<i data-lucide="filter" class="w-4 h-4"></i> 共 ${state.photos.length} 張 / 篩選 ${filteredPhotos.length} 張`;
 
             if (state.isLoading) {
-                container.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400"><i data-lucide="refresh-cw" class="animate-spin mb-4 text-blue-500 w-8 h-8"></i><p>正在同步雲端圖庫...</p></div>`;
-                return;
+                container.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400"><i data-lucide="refresh-cw" class="animate-spin mb-4 text-blue-500 w-8 h-8"></i><p>載入圖庫中...</p></div>`; return;
             }
-
             if (state.photos.length === 0) {
-                container.innerHTML = `
-                    <div class="h-full flex flex-col items-center justify-center text-gray-400 py-10">
-                        <i data-lucide="image" class="w-16 h-16 mb-4 opacity-20"></i>
-                        <h2 class="text-lg font-bold text-gray-700 mb-2">圖庫目前是空的</h2>
-                        <p class="mb-6 text-sm">請使用電腦版上傳照片，或匯入範例。</p>
-                        <button onclick="window.handleImportSamples()" class="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors">匯入範例照片</button>
-                    </div>`;
-                return;
+                container.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400 py-10"><i data-lucide="image" class="w-16 h-16 mb-4 opacity-20"></i><p class="mb-6 text-sm">圖庫目前是空的</p><button onclick="window.handleImportSamples()" class="px-6 py-2 bg-gray-900 text-white rounded-lg">匯入範例</button></div>`; return;
             }
-
             if (filteredPhotos.length === 0) {
-                 container.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400 py-10"><i data-lucide="filter" class="w-12 h-12 mb-4 opacity-20"></i><p>沒有找到符合條件的照片，請嘗試調整篩選器。</p></div>`;
-                 return;
+                 container.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400 py-10"><i data-lucide="filter" class="w-12 h-12 mb-4 opacity-20"></i><p>沒有符合條件的照片</p></div>`; return;
             }
 
             let html = `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">`;
             filteredPhotos.forEach(photo => {
                 const isSelected = state.moodBoard.some(p => p.id === photo.id);
+                const locDisplay = [photo.locationCity, photo.locationDist].filter(Boolean).join(', ');
                 html += `
                     <div class="group bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col">
                         <div class="relative aspect-video bg-gray-200 overflow-hidden shrink-0">
                             <img src="${photo.url}" alt="${photo.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                            <button onclick="window.toggleMoodBoard('${photo.id}')" class="absolute top-2 right-2 p-2 md:p-1.5 rounded-full shadow-sm backdrop-blur-sm transition-colors z-10 ${isSelected ? 'bg-blue-600 text-white' : 'bg-white/80 text-gray-700 hover:bg-white'}">
+                            <button onclick="window.toggleMoodBoard('${photo.id}')" class="absolute top-2 right-2 p-2 md:p-1.5 rounded-full shadow-sm backdrop-blur-sm z-10 ${isSelected ? 'bg-blue-600 text-white' : 'bg-white/80 text-gray-700 hover:bg-white'}">
                                 <i data-lucide="${isSelected ? 'check' : 'plus'}" class="w-4 h-4"></i>
                             </button>
-                            <button onclick="window.handleDeletePhoto('${photo.id}')" class="absolute top-2 left-2 p-2 md:p-1.5 rounded-full bg-red-500/80 text-white shadow-sm backdrop-blur-sm opacity-0 group-hover:opacity-100 hover:bg-red-600 transition-all z-10">
-                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            <button onclick="window.openEditModal('${photo.id}')" class="absolute top-2 left-2 p-2 md:p-1.5 rounded-full bg-gray-900/70 text-white shadow-sm backdrop-blur-sm opacity-0 group-hover:opacity-100 z-10 hover:bg-gray-900">
+                                <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
                             </button>
                             <div class="absolute bottom-2 left-2 flex gap-1 z-10">
                                 <span class="px-2 py-1 text-[10px] font-medium bg-black/60 text-white rounded backdrop-blur-sm shadow-sm flex items-center gap-1">
-                                    <i data-lucide="layout-template" class="w-2.5 h-2.5"></i> ${photo.design || '未分類'}
+                                    <i data-lucide="calendar" class="w-2.5 h-2.5"></i> ${photo.year || '無年份'} | ${photo.issue || '無期數'}
                                 </span>
                             </div>
                         </div>
                         <div class="p-4 flex-1 flex flex-col">
                             <h4 class="font-medium text-gray-900 mb-1 truncate" title="${photo.title}">${photo.title}</h4>
-                            <div class="flex flex-wrap gap-2 text-xs text-gray-500 mt-2">
-                                <span class="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded"><i data-lucide="bookmark" class="w-3 h-3"></i> ${photo.content || '未分類'}</span>
-                                <span class="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded"><i data-lucide="map-pin" class="w-3 h-3"></i> ${photo.location || '未分類'}</span>
+                            <div class="flex flex-wrap gap-2 text-[11px] text-gray-500 mt-2">
+                                <span class="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded"><i data-lucide="bookmark" class="w-3 h-3"></i> ${photo.content || '無內容'}</span>
+                                ${locDisplay ? `<span class="flex items-center gap-1 bg-green-50 text-green-700 px-2 py-1 rounded border border-green-100"><i data-lucide="map-pin" class="w-3 h-3"></i> ${locDisplay}</span>` : ''}
                             </div>
                         </div>
                     </div>`;
@@ -399,34 +408,39 @@
             const btn = document.getElementById('exportBtn');
 
             countEl.innerText = `${state.moodBoard.length} 張`;
-
             if (state.moodBoard.length === 0) {
-                container.innerHTML = `
-                    <div class="h-full flex flex-col items-center justify-center text-center text-gray-400 space-y-3 px-4 py-8 md:py-0">
-                        <i data-lucide="layout-template" class="w-8 h-8 opacity-20"></i>
-                        <p class="text-sm">點擊照片右上角的 "+" <br/>將素材加入企劃板</p>
-                    </div>`;
-                btn.disabled = true;
-                btn.className = "w-full py-2.5 rounded-md text-sm font-medium transition-colors bg-gray-100 text-gray-400 cursor-not-allowed";
+                container.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-center text-gray-400 space-y-3 px-4 py-8"><i data-lucide="folder-open" class="w-8 h-8 opacity-20"></i><p class="text-sm">尚未加入任何素材</p></div>`;
+                btn.disabled = true; btn.className = "w-full py-2.5 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed";
             } else {
                 let html = '';
                 state.moodBoard.forEach(photo => {
                     html += `
                     <div class="relative group bg-gray-50 rounded-md p-2 flex gap-3 border border-gray-100">
-                        <img src="${photo.url}" alt="${photo.title}" class="w-16 h-16 object-cover rounded shadow-sm" />
+                        <img src="${photo.url}" class="w-12 h-12 object-cover rounded shadow-sm" />
                         <div class="flex-1 min-w-0 flex flex-col justify-center">
                             <h5 class="text-sm font-medium text-gray-900 truncate">${photo.title}</h5>
-                            <p class="text-xs text-gray-500 truncate">${photo.design || '未分類'}</p>
                         </div>
-                        <button onclick="window.toggleMoodBoard('${photo.id}')" class="absolute -top-2 -right-2 bg-white border shadow-sm text-gray-400 hover:text-red-500 rounded-full p-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onclick="window.toggleMoodBoard('${photo.id}')" class="absolute -top-1.5 -right-1.5 bg-white border shadow-sm text-gray-400 hover:text-red-500 rounded-full p-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
                             <i data-lucide="x" class="w-3.5 h-3.5"></i>
                         </button>
                     </div>`;
                 });
                 container.innerHTML = html;
-                btn.disabled = false;
-                btn.className = "w-full py-2.5 rounded-md text-sm font-medium transition-colors bg-gray-900 text-white hover:bg-gray-800 shadow-md";
+                btn.disabled = false; btn.className = "w-full py-2.5 rounded-md text-sm font-medium transition-colors bg-gray-900 text-white hover:bg-gray-800 shadow-md";
             }
+        }
+
+        function createPillGroup(onClickFnName, idOrNull, field, options, selectedValue, colorClassActive) {
+            return `<div class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto custom-scrollbar pr-1 pb-1">
+                ${options.map(opt => {
+                    const isSel = selectedValue === opt;
+                    const safeOpt = opt.replace(/'/g, "\\'");
+                    const clickArgs = idOrNull ? `'${idOrNull}', '${field}', '${isSel ? '' : safeOpt}'` : `'${field}', '${isSel ? '' : safeOpt}'`;
+                    const activeStyle = colorClassActive + ' font-medium ring-1 ring-inset ring-current shadow-sm';
+                    const inactiveStyle = 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-800';
+                    return `<button type="button" onclick="window.${onClickFnName}(${clickArgs})" class="px-2 py-1 text-[11px] rounded-md border transition-all duration-200 ${isSel ? activeStyle : inactiveStyle}">${opt}</button>`;
+                }).join('')}
+            </div>`;
         }
 
         function renderModals() {
@@ -437,7 +451,7 @@
             if (state.isBatchModalOpen) {
                 html += `
                 <div class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 md:p-8">
-                    <div class="bg-white rounded-xl shadow-2xl w-full max-w-5xl h-full max-h-[85vh] flex flex-col overflow-hidden animate-fadeIn">
+                    <div class="bg-white rounded-xl shadow-2xl w-full max-w-5xl h-full max-h-[90vh] flex flex-col overflow-hidden animate-fadeIn">
                         <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 shrink-0">
                             <div class="flex items-center gap-3">
                                 <div class="bg-blue-100 text-blue-600 p-2 rounded-lg"><i data-lucide="layers" class="w-5 h-5"></i></div>
@@ -446,93 +460,182 @@
                                     <p class="text-xs text-gray-500">正在處理 ${state.uploadBatch.length} 張照片</p>
                                 </div>
                             </div>
-                            ${state.batchStatus === 'analyzing' ? `<div class="flex items-center gap-2 text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full text-sm font-medium"><i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> 雲端運算中...</div>` : ''}
+                            ${state.batchStatus === 'analyzing' ? `<div class="flex items-center gap-2 text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full text-sm font-medium"><i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> 處理中...</div>` : ''}
                         </div>
-                        <div class="flex-1 overflow-y-auto bg-gray-100/50 p-4 md:p-6">
-                            <div class="space-y-4">
-                                ${state.uploadBatch.map((item, index) => `
-                                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col md:flex-row gap-5 relative group">
-                                    <div class="w-full md:w-48 h-40 md:h-32 rounded-lg overflow-hidden relative shrink-0 bg-gray-100 border border-gray-100">
-                                        <img src="${item.url}" class="w-full h-full object-cover" alt="預覽" />
-                                        ${state.batchStatus === 'analyzing' ? `
-                                        <div class="absolute inset-0 bg-blue-900/40 flex items-center justify-center backdrop-blur-[1px]">
-                                            <div class="absolute top-0 left-0 w-full h-0.5 bg-blue-400 shadow-[0_0_10px_#60a5fa] scan-line" style="animation-delay: ${index * 0.2}s"></div>
-                                            <i data-lucide="sparkles" class="w-6 h-6 text-white animate-pulse"></i>
-                                        </div>` : ''}
+                        <div class="flex-1 overflow-y-auto bg-gray-100/50 p-4 md:p-6 space-y-4">
+                            ${state.uploadBatch.map((item, index) => {
+                                const tagPrefix = [item.suggestions.locationCity, item.suggestions.locationDist, item.suggestions.content, item.suggestions.year, item.suggestions.issue].filter(Boolean).join('-');
+                                const cityOpts = Object.keys(state.categories.locationHierarchy);
+                                const distOpts = item.suggestions.locationCity ? state.categories.locationHierarchy[item.suggestions.locationCity] : [];
+                                
+                                return `
+                                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col lg:flex-row gap-5 relative">
+                                    <div class="w-full lg:w-56 h-40 lg:h-auto lg:aspect-[4/3] rounded-lg overflow-hidden relative shrink-0 bg-gray-100 border border-gray-100">
+                                        <img src="${item.url}" class="w-full h-full object-cover" />
+                                        ${state.batchStatus === 'analyzing' ? `<div class="absolute inset-0 bg-blue-900/40 flex items-center justify-center backdrop-blur-[1px]"><div class="absolute top-0 left-0 w-full h-0.5 bg-blue-400 shadow-[0_0_10px_#60a5fa] scan-line" style="animation-delay: ${index * 0.2}s"></div><i data-lucide="sparkles" class="w-6 h-6 text-white animate-pulse"></i></div>` : ''}
                                     </div>
-                                    <div class="flex-1 flex flex-col justify-center min-w-0">
-                                        <div class="flex justify-between items-start mb-3">
-                                            <input type="text" value="${item.suggestions.title}" oninput="window.updateBatchItem('${item.id}', 'title', this.value)" ${state.batchStatus === 'analyzing' || state.batchStatus === 'saving' ? 'disabled' : ''} class="font-medium text-gray-900 border-b border-gray-200 hover:border-gray-300 focus:border-blue-500 focus:bg-gray-50 outline-none px-1 py-0.5 w-full max-w-sm transition-colors disabled:bg-transparent" />
-                                            <button onclick="window.removeBatchItem('${item.id}')" class="text-gray-400 hover:text-red-500 p-2 md:p-1 transition-colors"><i data-lucide="trash-2" class="w-5 h-5 md:w-4 md:h-4"></i></button>
+                                    <div class="flex-1 flex flex-col justify-center min-w-0 py-1 ${state.batchStatus === 'analyzing' || state.batchStatus === 'saving' ? 'opacity-50 pointer-events-none' : ''}">
+                                        
+                                        <div class="flex flex-col gap-1 mb-4">
+                                            <div class="flex items-center justify-between">
+                                                <label class="text-[10px] uppercase font-bold text-gray-400 flex items-center gap-1"><i data-lucide="tag" class="w-3 h-3"></i> 最終命名</label>
+                                                <button onclick="window.removeBatchItem('${item.id}')" class="text-gray-400 hover:text-red-500 p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                                            </div>
+                                            <div class="flex flex-col sm:flex-row sm:items-center gap-2 bg-gray-50 border border-gray-200 rounded-md p-2">
+                                                <span class="text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-1.5 rounded truncate shrink-0 max-w-full sm:max-w-[200px]">${tagPrefix || '無標籤'}</span>
+                                                <span class="text-gray-400 font-bold hidden sm:block">+</span>
+                                                <input type="text" value="${item.suggestions.customText || ''}" oninput="window.updateBatchItemCustomText('${item.id}', this.value)" placeholder="自訂文字..." class="font-medium text-gray-900 border-b border-transparent hover:border-gray-300 focus:border-blue-500 bg-transparent outline-none px-1 py-1 w-full min-w-0 transition-colors" />
+                                            </div>
                                         </div>
+
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                                            <div>
+                                                <div class="flex items-center justify-between mb-2">
+                                                    <label class="text-[10px] uppercase font-bold text-gray-400">國家/縣市</label>
+                                                </div>
+                                                ${createPillGroup('updateBatchItem', item.id, 'locationCity', cityOpts, item.suggestions.locationCity, 'bg-green-50 border-green-200 text-green-700')}
+                                            </div>
+                                            <div>
+                                                <div class="flex items-center justify-between mb-2">
+                                                    <label class="text-[10px] uppercase font-bold text-gray-400">鄉鎮市區</label>
+                                                </div>
+                                                ${item.suggestions.locationCity ? 
+                                                    (distOpts.length > 0 ? createPillGroup('updateBatchItem', item.id, 'locationDist', distOpts, item.suggestions.locationDist, 'bg-green-100 border-green-300 text-green-800') : '<p class="text-[11px] text-gray-400 py-1">該縣市尚無區域名單，可由側邊欄新增</p>') 
+                                                    : '<p class="text-[11px] text-gray-400 py-1">請先選擇左側的國家/縣市</p>'}
+                                            </div>
+                                        </div>
+                                        
                                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                             <div>
-                                                <div class="flex items-center justify-between mb-1.5">
-                                                    <label class="text-[10px] uppercase font-bold text-gray-400 flex items-center gap-1"><i data-lucide="bookmark" class="w-2.5 h-2.5"></i> 內容</label>
-                                                    <button onclick="window.openAddTagModal('content')" class="text-blue-400 hover:text-blue-600 bg-blue-50 hover:bg-blue-100 p-1 rounded-full transition-colors" title="新增標籤"><i data-lucide="plus" class="w-2.5 h-2.5"></i></button>
+                                                <div class="flex items-center justify-between mb-2">
+                                                    <label class="text-[10px] uppercase font-bold text-gray-400">內容體驗</label>
+                                                    <button onclick="window.openAddTagModal('content')" class="text-blue-400 hover:text-blue-600 bg-blue-50 hover:bg-blue-100 p-0.5 rounded-full"><i data-lucide="plus" class="w-3 h-3"></i></button>
                                                 </div>
-                                                <select onchange="window.updateBatchItem('${item.id}', 'content', this.value)" ${state.batchStatus === 'analyzing' || state.batchStatus === 'saving' ? 'disabled' : ''} class="w-full text-xs border border-gray-200 rounded p-2 md:p-1.5 focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-gray-50">
-                                                    <option value="" disabled ${!item.suggestions.content ? 'selected' : ''}>請選擇</option>
-                                                    ${state.categories.content.map(c => `<option value="${c}" ${item.suggestions.content === c ? 'selected' : ''}>${c}</option>`).join('')}
-                                                </select>
+                                                ${createPillGroup('updateBatchItem', item.id, 'content', state.categories.content, item.suggestions.content, 'bg-blue-50 border-blue-200 text-blue-700')}
                                             </div>
                                             <div>
-                                                <div class="flex items-center justify-between mb-1.5">
-                                                    <label class="text-[10px] uppercase font-bold text-gray-400 flex items-center gap-1"><i data-lucide="layout-template" class="w-2.5 h-2.5"></i> 設計</label>
-                                                    <button onclick="window.openAddTagModal('design')" class="text-purple-400 hover:text-purple-600 bg-purple-50 hover:bg-purple-100 p-1 rounded-full transition-colors" title="新增標籤"><i data-lucide="plus" class="w-2.5 h-2.5"></i></button>
+                                                <div class="flex items-center justify-between mb-2">
+                                                    <label class="text-[10px] uppercase font-bold text-gray-400">發行年份</label>
+                                                    <button onclick="window.openAddTagModal('year')" class="text-purple-400 hover:text-purple-600 bg-purple-50 hover:bg-purple-100 p-0.5 rounded-full"><i data-lucide="plus" class="w-3 h-3"></i></button>
                                                 </div>
-                                                <select onchange="window.updateBatchItem('${item.id}', 'design', this.value)" ${state.batchStatus === 'analyzing' || state.batchStatus === 'saving' ? 'disabled' : ''} class="w-full text-xs border border-gray-200 rounded p-2 md:p-1.5 focus:ring-1 focus:ring-purple-500 outline-none disabled:bg-gray-50">
-                                                    <option value="" disabled ${!item.suggestions.design ? 'selected' : ''}>請選擇</option>
-                                                    ${state.categories.design.map(c => `<option value="${c}" ${item.suggestions.design === c ? 'selected' : ''}>${c}</option>`).join('')}
-                                                </select>
+                                                ${createPillGroup('updateBatchItem', item.id, 'year', state.categories.year, item.suggestions.year, 'bg-purple-50 border-purple-200 text-purple-700')}
                                             </div>
                                             <div>
-                                                <div class="flex items-center justify-between mb-1.5">
-                                                    <label class="text-[10px] uppercase font-bold text-gray-400 flex items-center gap-1"><i data-lucide="map-pin" class="w-2.5 h-2.5"></i> 地點</label>
-                                                    <button onclick="window.openAddTagModal('location')" class="text-green-400 hover:text-green-600 bg-green-50 hover:bg-green-100 p-1 rounded-full transition-colors" title="新增標籤"><i data-lucide="plus" class="w-2.5 h-2.5"></i></button>
+                                                <div class="flex items-center justify-between mb-2">
+                                                    <label class="text-[10px] uppercase font-bold text-gray-400">雜誌期數</label>
+                                                    <button onclick="window.openAddTagModal('issue')" class="text-orange-400 hover:text-orange-600 bg-orange-50 hover:bg-orange-100 p-0.5 rounded-full"><i data-lucide="plus" class="w-3 h-3"></i></button>
                                                 </div>
-                                                <select onchange="window.updateBatchItem('${item.id}', 'location', this.value)" ${state.batchStatus === 'analyzing' || state.batchStatus === 'saving' ? 'disabled' : ''} class="w-full text-xs border border-gray-200 rounded p-2 md:p-1.5 focus:ring-1 focus:ring-green-500 outline-none disabled:bg-gray-50">
-                                                    <option value="" disabled ${!item.suggestions.location ? 'selected' : ''}>請選擇</option>
-                                                    ${state.categories.location.map(c => `<option value="${c}" ${item.suggestions.location === c ? 'selected' : ''}>${c}</option>`).join('')}
-                                                </select>
+                                                ${createPillGroup('updateBatchItem', item.id, 'issue', state.categories.issue, item.suggestions.issue, 'bg-orange-50 border-orange-200 text-orange-700')}
                                             </div>
                                         </div>
+
                                     </div>
-                                </div>`).join('')}
-                            </div>
+                                </div>`;
+                            }).join('')}
                         </div>
                         <div class="px-6 py-4 border-t border-gray-200 bg-white flex justify-between items-center shrink-0">
-                            <button onclick="window.closeBatchModal()" ${state.batchStatus === 'saving' ? 'disabled' : ''} class="px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition-colors text-sm disabled:opacity-50">取消匯入</button>
+                            <button onclick="window.closeBatchModal()" ${state.batchStatus === 'saving' ? 'disabled' : ''} class="px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition-colors text-sm disabled:opacity-50">取消</button>
                             <button onclick="window.handleSaveBatch()" ${state.batchStatus === 'analyzing' || state.batchStatus === 'saving' ? 'disabled' : ''} class="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:bg-blue-400 transition-colors shadow-sm">
-                                ${state.batchStatus === 'analyzing' ? '等待解析...' : state.batchStatus === 'saving' ? '儲存至雲端...' : `確認並收錄全部 (${state.uploadBatch.length}張)`}
-                                ${state.batchStatus !== 'analyzing' && state.batchStatus !== 'saving' ? '<i data-lucide="image-plus" class="w-4.5 h-4.5"></i>' : ''}
-                                ${state.batchStatus === 'saving' ? '<i data-lucide="loader-2" class="w-4.5 h-4.5 animate-spin"></i>' : ''}
+                                ${state.batchStatus === 'analyzing' ? '等待解析...' : state.batchStatus === 'saving' ? '<i data-lucide="loader-2" class="w-4.5 h-4.5 animate-spin"></i> 儲存中...' : `確認收錄 (${state.uploadBatch.length}張)`}
                             </button>
                         </div>
                     </div>
                 </div>`;
             }
 
-            // 新增標籤 Modal (修改 z-index 為 z-[110] 確保覆蓋在批量上傳面板之上)
-            if (state.tagModal.isOpen) {
+            // 編輯 Modal
+            if (state.editModal.isOpen && state.editModal.photo) {
+                const photo = state.editModal.photo;
+                const cityOpts = Object.keys(state.categories.locationHierarchy);
+                const distOpts = photo.locationCity ? state.categories.locationHierarchy[photo.locationCity] : [];
+                
                 html += `
-                <div class="fixed inset-0 z-[110] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm px-4">
-                    <div class="bg-white rounded-lg p-6 w-full max-w-sm shadow-2xl transform transition-all animate-fadeIn">
-                        <h3 class="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                            <div class="bg-blue-100 text-blue-600 p-1.5 rounded-md"><i data-lucide="plus" class="w-4 h-4"></i></div>
-                            新增自訂標籤
-                        </h3>
-                        <input type="text" id="newTagInput" value="${state.newTagValue}" oninput="window.updateNewTagValue(this.value)" onkeydown="if(event.key === 'Enter') window.confirmAddTag()" placeholder="請輸入標籤名稱..." class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-2" />
-                        ${state.tagModal.error ? `<p class="text-red-500 text-xs mb-4">${state.tagModal.error}</p>` : ''}
-                        <div class="flex justify-end gap-2 mt-4">
-                            <button onclick="window.closeTagModal()" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors">取消</button>
-                            <button onclick="window.confirmAddTag()" class="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors shadow-sm">確定新增</button>
+                <div class="fixed inset-0 z-[105] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm px-4 py-6">
+                    <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-full animate-fadeIn">
+                        <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center gap-2 shrink-0">
+                            <i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i>
+                            <h3 class="font-bold text-gray-900">編輯照片屬性</h3>
+                        </div>
+                        <div class="p-6 overflow-y-auto space-y-6">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-2">完整照片名稱</label>
+                                <input type="text" value="${photo.title}" oninput="window.updateEditModalTitle(this.value)" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-shadow" />
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-green-50/50 rounded-lg border border-green-100">
+                                <div>
+                                    <label class="block text-[10px] uppercase font-bold text-gray-500 mb-2">地理位置：國家/縣市</label>
+                                    ${createPillGroup('updateEditModalField', null, 'locationCity', cityOpts, photo.locationCity, 'bg-green-100 border-green-300 text-green-800')}
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] uppercase font-bold text-gray-500 mb-2">地理位置：鄉鎮區</label>
+                                    ${photo.locationCity ? 
+                                        (distOpts.length > 0 ? createPillGroup('updateEditModalField', null, 'locationDist', distOpts, photo.locationDist, 'bg-green-200 border-green-400 text-green-900') : '<p class="text-[11px] text-gray-500">該縣市無區域選項</p>') 
+                                        : '<p class="text-[11px] text-gray-400">請先選擇左側縣市</p>'}
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <div class="flex items-center justify-between mb-2">
+                                        <label class="block text-[10px] uppercase font-bold text-gray-400">內容分類</label>
+                                        <button onclick="window.openAddTagModal('content')" class="text-blue-400 hover:text-blue-600 bg-blue-50 hover:bg-blue-100 p-0.5 rounded-full"><i data-lucide="plus" class="w-3 h-3"></i></button>
+                                    </div>
+                                    ${createPillGroup('updateEditModalField', null, 'content', state.categories.content, photo.content, 'bg-blue-50 border-blue-200 text-blue-700')}
+                                </div>
+                                <div>
+                                    <div class="flex items-center justify-between mb-2">
+                                        <label class="block text-[10px] uppercase font-bold text-gray-400">發行年份</label>
+                                        <button onclick="window.openAddTagModal('year')" class="text-purple-400 hover:text-purple-600 bg-purple-50 hover:bg-purple-100 p-0.5 rounded-full"><i data-lucide="plus" class="w-3 h-3"></i></button>
+                                    </div>
+                                    ${createPillGroup('updateEditModalField', null, 'year', state.categories.year, photo.year, 'bg-purple-50 border-purple-200 text-purple-700')}
+                                </div>
+                                <div>
+                                    <div class="flex items-center justify-between mb-2">
+                                        <label class="block text-[10px] uppercase font-bold text-gray-400">雜誌期數</label>
+                                        <button onclick="window.openAddTagModal('issue')" class="text-orange-400 hover:text-orange-600 bg-orange-50 hover:bg-orange-100 p-0.5 rounded-full"><i data-lucide="plus" class="w-3 h-3"></i></button>
+                                    </div>
+                                    ${createPillGroup('updateEditModalField', null, 'issue', state.categories.issue, photo.issue, 'bg-orange-50 border-orange-200 text-orange-700')}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center shrink-0">
+                            <button onclick="window.handleDeletePhoto('${photo.id}')" class="text-red-500 hover:text-red-700 text-sm font-medium transition-colors flex items-center gap-1"><i data-lucide="trash-2" class="w-4 h-4"></i> 刪除</button>
+                            <div class="flex gap-2">
+                                <button onclick="window.closeEditModal()" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-200 rounded-md transition-colors font-medium">取消</button>
+                                <button onclick="window.savePhotoEdit()" class="px-5 py-2 text-sm bg-gray-900 text-white hover:bg-gray-800 rounded-md transition-colors shadow-sm font-medium">儲存</button>
+                            </div>
                         </div>
                     </div>
                 </div>`;
             }
 
-            // 確認操作 Modal (修改 z-index 為 z-[120])
+            // 新增標籤 Modal
+            if (state.tagModal.isOpen) {
+                let title = '新增自訂標籤';
+                let hint = '';
+                if (state.tagModal.type === 'locationCity') { title = '新增 國家/縣市'; hint = '例如: 日本-京都'; }
+                else if (state.tagModal.type === 'locationDist') { title = `在「${state.tagModal.parentCity}」新增區域`; hint = '例如: 嵐山區'; }
+
+                html += `
+                <div class="fixed inset-0 z-[110] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm px-4">
+                    <div class="bg-white rounded-lg p-6 w-full max-w-sm shadow-2xl transform transition-all animate-fadeIn">
+                        <h3 class="font-bold text-gray-900 mb-2 flex items-center gap-2">
+                            <div class="bg-blue-100 text-blue-600 p-1.5 rounded-md"><i data-lucide="plus" class="w-4 h-4"></i></div>
+                            ${title}
+                        </h3>
+                        <p class="text-xs text-gray-500 mb-4">${hint}</p>
+                        <input type="text" id="newTagInput" value="${state.newTagValue}" oninput="window.updateNewTagValue(this.value)" onkeydown="if(event.key === 'Enter') window.confirmAddTag()" placeholder="輸入名稱..." class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-2" />
+                        ${state.tagModal.error ? `<p class="text-red-500 text-xs mb-4">${state.tagModal.error}</p>` : ''}
+                        <div class="flex justify-end gap-2 mt-4">
+                            <button onclick="window.closeTagModal()" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors">取消</button>
+                            <button onclick="window.confirmAddTag()" class="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors shadow-sm">確定</button>
+                        </div>
+                    </div>
+                </div>`;
+            }
+
+            // 確認操作 Modal
             if (state.confirmDialog.isOpen) {
                 html += `
                 <div class="fixed inset-0 z-[120] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm px-4">
@@ -548,45 +651,27 @@
             }
 
             container.innerHTML = html;
-
-            if (state.tagModal.isOpen) {
-                setTimeout(() => document.getElementById('newTagInput')?.focus(), 10);
-            }
+            if (state.tagModal.isOpen) setTimeout(() => document.getElementById('newTagInput')?.focus(), 10);
         }
 
-        // 統一更新入口
-        function updateUI() {
-            renderAuthStatus();
-            renderFilters();
-            renderGallery();
-            renderMoodBoard();
-            renderModals();
-            lucide.createIcons();
-        }
+        function updateUI() { renderAuthStatus(); updateFilters(); updateGallery(); updateMoodBoard(); updateModals(); }
         function updateFilters() { renderFilters(); lucide.createIcons(); }
         function updateGallery() { renderGallery(); lucide.createIcons(); }
         function updateMoodBoard() { renderMoodBoard(); lucide.createIcons(); }
         function updateModals() { renderModals(); lucide.createIcons(); }
 
-        // === 5. 事件與業務邏輯 ===
-        
-        document.getElementById('searchInput').addEventListener('input', (e) => {
-            state.searchQuery = e.target.value;
-            updateGallery();
-        });
+        document.getElementById('searchInput').addEventListener('input', (e) => { state.searchQuery = e.target.value; updateGallery(); });
 
         window.toggleFilter = (type, value) => {
             const current = state.filters[type];
             if (current.includes(value)) state.filters[type] = current.filter(item => item !== value);
             else state.filters[type].push(value);
-            updateFilters();
-            updateGallery();
+            updateFilters(); updateGallery();
         };
 
         window.clearFilters = () => {
-            state.filters = { content: [], design: [], location: [] };
-            updateFilters();
-            updateGallery();
+            state.filters = { content: [], year: [], issue: [], locationCity: [], locationDist: [] };
+            updateFilters(); updateGallery();
         };
 
         window.toggleMoodBoard = (photoId) => {
@@ -595,70 +680,86 @@
             const index = state.moodBoard.findIndex(p => p.id === photoId);
             if (index > -1) state.moodBoard.splice(index, 1);
             else state.moodBoard.push(photo);
-            updateGallery();
-            updateMoodBoard();
+            updateGallery(); updateMoodBoard();
         };
 
-        window.updateNewTagValue = (val) => {
-            state.newTagValue = val;
+        window.openEditModal = (photoId) => {
+            const photo = state.photos.find(p => p.id === photoId);
+            if (photo) { state.editModal = { isOpen: true, photo: { ...photo } }; updateModals(); }
+        };
+        window.closeEditModal = () => { state.editModal = { isOpen: false, photo: null }; updateModals(); };
+        window.updateEditModalTitle = (val) => { if (state.editModal.photo) state.editModal.photo.title = val; };
+        
+        window.updateEditModalField = (field, value) => {
+            if (state.editModal.photo) {
+                state.editModal.photo[field] = value;
+                // 若更改縣市，清空區域
+                if(field === 'locationCity' && state.editModal.photo.locationDist) {
+                    state.editModal.photo.locationDist = '';
+                }
+                updateModals();
+            }
         };
 
-        window.openAddTagModal = (type) => {
-            state.tagModal = { isOpen: true, type: type, error: '' };
-            state.newTagValue = '';
-            updateModals();
+        window.savePhotoEdit = async () => {
+            if (!state.user || !state.editModal.photo) return;
+            const photo = state.editModal.photo;
+            const title = photo.title.trim() || '未命名圖片';
+            try {
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'photos', photo.id), { 
+                    title, content: photo.content || '', year: photo.year || '', issue: photo.issue || '', 
+                    locationCity: photo.locationCity || '', locationDist: photo.locationDist || ''
+                }, { merge: true });
+                window.closeEditModal();
+            } catch (err) { console.error(err); alert("儲存失敗"); }
         };
 
-        window.closeTagModal = () => {
-            state.tagModal.isOpen = false;
-            updateModals();
+        window.updateNewTagValue = (val) => { state.newTagValue = val; };
+        window.openAddTagModal = (type, parentCity = '') => {
+            state.tagModal = { isOpen: true, type, parentCity, error: '' }; state.newTagValue = ''; updateModals();
         };
+        window.closeTagModal = () => { state.tagModal.isOpen = false; updateModals(); };
 
         window.confirmAddTag = async () => {
             const inputEl = document.getElementById('newTagInput');
             const tag = inputEl ? inputEl.value.trim() : state.newTagValue.trim();
-            const type = state.tagModal.type;
-            
-            if (!tag) {
-                state.tagModal.error = '標籤名稱不能為空';
-                updateModals();
-                return;
-            }
-            if (!state.categories[type]) state.categories[type] = [];
-            
-            if (state.categories[type].includes(tag)) {
-                state.tagModal.error = '該標籤已經存在！';
-                updateModals();
-                return;
+            const { type, parentCity } = state.tagModal;
+            if (!tag) { state.tagModal.error = '不可為空'; updateModals(); return; }
+
+            if (type === 'locationCity') {
+                if (state.categories.locationHierarchy[tag]) { state.tagModal.error = '已存在'; updateModals(); return; }
+                state.categories.locationHierarchy[tag] = [];
+            } else if (type === 'locationDist') {
+                if (state.categories.locationHierarchy[parentCity].includes(tag)) { state.tagModal.error = '已存在'; updateModals(); return; }
+                state.categories.locationHierarchy[parentCity].push(tag);
+            } else {
+                if (!state.categories[type]) state.categories[type] = [];
+                if (state.categories[type].includes(tag)) { state.tagModal.error = '已存在'; updateModals(); return; }
+                state.categories[type].push(tag);
             }
 
-            state.categories[type].push(tag);
-            if (state.user) {
-                const tagsRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'tags');
-                await setDoc(tagsRef, state.categories, { merge: true });
-            }
-            
-            state.tagModal.isOpen = false;
-            updateModals();
-            updateFilters();
+            if (state.user) await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'tags_v2'), state.categories, { merge: true });
+            state.tagModal.isOpen = false; updateModals(); updateFilters();
         };
 
         window.handleDeleteTag = (type, tagToDelete, e) => {
-            e.stopPropagation();
+            if(e) e.stopPropagation();
             state.confirmDialog = {
-                isOpen: true,
-                message: `確定要刪除「${tagToDelete}」這個標籤嗎？`,
-                isPrimary: false,
+                isOpen: true, message: `確定要刪除「${tagToDelete}」？ (不影響已標記的照片)`, isPrimary: false,
                 action: async () => {
-                    state.categories[type] = state.categories[type].filter(t => t !== tagToDelete);
-                    state.filters[type] = state.filters[type].filter(t => t !== tagToDelete);
-                    if (state.user) {
-                        const tagsRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'tags');
-                        await setDoc(tagsRef, state.categories, { merge: true });
+                    if (type === 'locationCity') {
+                        delete state.categories.locationHierarchy[tagToDelete];
+                        state.filters.locationCity = state.filters.locationCity.filter(t => t !== tagToDelete);
+                    } else if (type === 'locationDist') {
+                        const [city, dist] = tagToDelete.split('|');
+                        state.categories.locationHierarchy[city] = state.categories.locationHierarchy[city].filter(t => t !== dist);
+                        state.filters.locationDist = state.filters.locationDist.filter(t => t !== tagToDelete);
+                    } else {
+                        state.categories[type] = state.categories[type].filter(t => t !== tagToDelete);
+                        state.filters[type] = state.filters[type].filter(t => t !== tagToDelete);
                     }
-                    window.closeConfirmDialog();
-                    updateFilters();
-                    updateGallery();
+                    if (state.user) await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'tags_v2'), state.categories, { merge: true });
+                    window.closeConfirmDialog(); updateFilters(); updateGallery();
                 }
             };
             updateModals();
@@ -667,215 +768,125 @@
         window.handleDeletePhoto = (id) => {
             if (!state.user) return;
             state.confirmDialog = {
-                isOpen: true,
-                message: "確定要刪除這張照片嗎？",
-                isPrimary: false,
+                isOpen: true, message: "確定刪除這張照片？", isPrimary: false,
                 action: async () => {
                     try {
                         await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'photos', id));
-                        state.moodBoard = state.moodBoard.filter(p => p.id !== id);
-                        updateMoodBoard();
+                        state.moodBoard = state.moodBoard.filter(p => p.id !== id); updateMoodBoard(); window.closeEditModal(); 
                     } catch (e) { console.error(e); }
                     window.closeConfirmDialog();
                 }
-            };
-            updateModals();
+            }; updateModals();
         };
 
-        window.closeConfirmDialog = () => {
-            state.confirmDialog = { isOpen: false, message: '', action: null, isPrimary: false };
-            updateModals();
-        };
-
-        window.executeConfirmAction = () => {
-            if (state.confirmDialog.action) state.confirmDialog.action();
-        };
+        window.closeConfirmDialog = () => { state.confirmDialog = { isOpen: false, message: '', action: null, isPrimary: false }; updateModals(); };
+        window.executeConfirmAction = () => { if (state.confirmDialog.action) state.confirmDialog.action(); };
 
         window.handleExport = () => {
             if (state.moodBoard.length === 0) return;
-            
+            // 讀取年份與期數
+            const year = document.getElementById('project-year').value;
+            let issue = document.getElementById('project-issue').value.trim();
+            if(!issue) issue = "未命名專案";
+            const safeIssue = issue.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
+            const zipName = `TravelLens_${year}_${safeIssue}.zip`;
+
             state.confirmDialog = {
-                isOpen: true,
-                message: `確定要將這 ${state.moodBoard.length} 張素材打包下載為 ZIP 壓縮檔嗎？`,
-                isPrimary: true,
+                isOpen: true, message: `將打包下載為 ${zipName} 嗎？`, isPrimary: true,
                 action: async () => {
                     window.closeConfirmDialog();
-                    
-                    const exportBtn = document.getElementById('exportBtn');
-                    const originalText = exportBtn.innerText;
-                    exportBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin inline mr-1"></i> 打包下載中...';
-                    exportBtn.disabled = true;
-                    lucide.createIcons();
-
+                    const exportBtn = document.getElementById('exportBtn'); const origText = exportBtn.innerText;
+                    exportBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin inline mr-1"></i> 下載中...'; exportBtn.disabled = true;
                     try {
                         const zip = new JSZip();
-                        const promises = state.moodBoard.map(async (photo, index) => {
+                        await Promise.all(state.moodBoard.map(async (photo, index) => {
                             try {
-                                const response = await fetch(photo.url);
-                                const blob = await response.blob();
+                                const response = await fetch(photo.url); const blob = await response.blob();
                                 const ext = blob.type.split('/')[1] || 'jpg';
-                                const safeTitle = (photo.title || '圖片').replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
-                                zip.file(`TravelLens_${index + 1}_${safeTitle}.${ext}`, blob);
-                            } catch (err) {
-                                console.warn("無法取得此圖片的原始檔案:", photo.url, err);
-                                zip.file(`Error_圖片_${index + 1}.txt`, `這張圖片因為跨網域安全性被瀏覽器阻擋下載:\n${photo.url}`);
-                            }
-                        });
-
-                        await Promise.all(promises);
+                                const safeTitle = (photo.title || '圖片').replace(/[^a-zA-Z0-9\u4e00-\u9fa5_-]/g, '');
+                                zip.file(`${index + 1}_${safeTitle}.${ext}`, blob);
+                            } catch (err) { zip.file(`Error_${index + 1}.txt`, `下載阻擋:\n${photo.url}`); }
+                        }));
                         const zipBlob = await zip.generateAsync({ type: 'blob' });
-                        const link = document.createElement('a');
-                        link.href = URL.createObjectURL(zipBlob);
-                        link.download = 'TravelLens_素材包.zip';
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                        URL.revokeObjectURL(link.href);
-
-                        state.moodBoard = [];
-                        updateGallery();
-                        updateMoodBoard();
-                    } catch (error) {
-                        console.error('打包下載發生錯誤:', error);
-                        alert('下載過程發生錯誤，請稍後再試。');
-                    } finally {
-                        exportBtn.innerText = originalText;
-                        exportBtn.disabled = false;
-                    }
+                        const link = document.createElement('a'); link.href = URL.createObjectURL(zipBlob); link.download = zipName;
+                        document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(link.href);
+                        state.moodBoard = []; updateGallery(); updateMoodBoard();
+                    } catch (error) { alert('下載發生錯誤'); } 
+                    finally { exportBtn.innerText = origText; exportBtn.disabled = false; }
                 }
-            };
-            updateModals();
+            }; updateModals();
         };
 
         window.handleImportSamples = async () => {
-            if (!state.user) return;
-            state.isLoading = true;
-            updateGallery();
+            if (!state.user) return; state.isLoading = true; updateGallery();
             try {
-                const photosRef = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
-                for (const sample of SAMPLE_PHOTOS) {
-                    await addDoc(photosRef, { ...sample, createdAt: Date.now() });
-                }
+                const pRef = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
+                for (const s of SAMPLE_PHOTOS) await addDoc(pRef, { ...s, createdAt: Date.now() });
             } catch (e) { console.error(e); }
         };
 
-        const compressImage = (file) => {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = (event) => {
-                    const img = new Image();
-                    img.src = event.target.result;
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        const MAX_WIDTH = 800, MAX_HEIGHT = 800;
-                        let width = img.width, height = img.height;
-                        if (width > height && width > MAX_WIDTH) {
-                            height *= MAX_WIDTH / width; width = MAX_WIDTH;
-                        } else if (height > MAX_HEIGHT) {
-                            width *= MAX_HEIGHT / height; height = MAX_HEIGHT;
-                        }
-                        canvas.width = width; canvas.height = height;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, width, height);
-                        resolve(canvas.toDataURL('image/jpeg', 0.7));
-                    };
-                    img.onerror = reject;
-                };
-                reader.onerror = reject;
-            });
-        };
+        const compressImage = (file) => new Promise((res, rej) => {
+            const r = new FileReader(); r.readAsDataURL(file);
+            r.onload = e => { const i = new Image(); i.src = e.target.result;
+                i.onload = () => {
+                    const cvs = document.createElement('canvas'); let w = i.width, h = i.height;
+                    if (w > h && w > 800) { h *= 800/w; w = 800; } else if (h > 800) { w *= 800/h; h = 800; }
+                    cvs.width = w; cvs.height = h; cvs.getContext('2d').drawImage(i, 0, 0, w, h);
+                    res(cvs.toDataURL('image/jpeg', 0.7));
+                }; i.onerror = rej;
+            }; r.onerror = rej;
+        });
 
         window.handleBatchUpload = async (e) => {
-            const files = Array.from(e.target.files);
-            if (files.length === 0) return;
-
-            state.isBatchModalOpen = true;
-            state.batchStatus = 'analyzing';
-            updateModals();
-
+            const files = Array.from(e.target.files); if (files.length === 0) return;
+            state.isBatchModalOpen = true; state.batchStatus = 'analyzing'; updateModals();
             try {
-                const processedBatch = await Promise.all(files.map(async (file, index) => {
-                    const base64Url = await compressImage(file);
-                    return {
-                        id: `batch-${Date.now()}-${index}`,
-                        url: base64Url,
-                        originalName: file.name,
-                        suggestions: { title: '分析中...', content: '', design: '', location: '' }
-                    };
-                }));
-                state.uploadBatch = processedBatch;
-                updateModals();
-
+                state.uploadBatch = await Promise.all(files.map(async (file, i) => ({
+                    id: `batch-${Date.now()}-${i}`, url: await compressImage(file), originalName: file.name,
+                    suggestions: { customText: '分析中...', content: '', year: '', issue: '', locationCity: '', locationDist: '' }
+                }))); updateModals();
                 setTimeout(() => {
-                    const randomItem = (arr) => arr[Math.floor(Math.random() * arr.length)];
-                    state.uploadBatch = state.uploadBatch.map(item => ({
-                        ...item,
-                        suggestions: {
-                            title: randomItem(['旅行碎片', '質感光影', '街角隨拍', '壯闊視野', '美食探索']) + ' - ' + item.originalName.substring(0, 4),
-                            content: randomItem(state.categories.content || []),
-                            design: randomItem(state.categories.design || []),
-                            location: randomItem(state.categories.location || [])
-                        }
-                    }));
-                    state.batchStatus = 'review';
-                    updateModals();
-                }, 2500);
+                    const rnd = (arr) => arr[Math.floor(Math.random() * arr.length)] || '';
+                    state.uploadBatch = state.uploadBatch.map(item => {
+                        const cty = rnd(Object.keys(state.categories.locationHierarchy));
+                        const dst = cty ? rnd(state.categories.locationHierarchy[cty]) : '';
+                        return { ...item, suggestions: {
+                            customText: item.originalName.replace(/\.[^/.]+$/, "").substring(0, 10),
+                            content: rnd(state.categories.content), year: rnd(state.categories.year), issue: rnd(state.categories.issue), locationCity: cty, locationDist: dst
+                        }};
+                    });
+                    state.batchStatus = 'review'; updateModals();
+                }, 2000);
+            } catch (err) { state.batchStatus = 'idle'; state.isBatchModalOpen = false; updateModals(); } e.target.value = null;
+        };
 
-            } catch (err) {
-                console.error("Upload error:", err);
-                state.batchStatus = 'idle';
-                state.isBatchModalOpen = false;
-                updateModals();
+        window.updateBatchItemCustomText = (id, val) => { const i = state.uploadBatch.find(x=>x.id===id); if(i) i.suggestions.customText = val; };
+        window.updateBatchItem = (id, fld, val) => { 
+            const i = state.uploadBatch.find(x=>x.id===id); 
+            if(i) {
+                i.suggestions[fld] = val; 
+                if(fld === 'locationCity' && i.suggestions.locationDist) i.suggestions.locationDist = ''; // 改縣市清空區域
             }
-            e.target.value = null;
+            updateModals(); 
         };
-
-        window.updateBatchItem = (id, field, value) => {
-            const item = state.uploadBatch.find(i => i.id === id);
-            if (item) item.suggestions[field] = value;
-        };
-
-        window.removeBatchItem = (id) => {
-            state.uploadBatch = state.uploadBatch.filter(item => item.id !== id);
-            if (state.uploadBatch.length === 0) window.closeBatchModal();
-            else updateModals();
-        };
-
-        window.closeBatchModal = () => {
-            state.isBatchModalOpen = false;
-            updateModals();
-            setTimeout(() => {
-                state.batchStatus = 'idle';
-                state.uploadBatch = [];
-            }, 300);
-        };
+        window.removeBatchItem = (id) => { state.uploadBatch = state.uploadBatch.filter(i=>i.id!==id); if(!state.uploadBatch.length) window.closeBatchModal(); else updateModals(); };
+        window.closeBatchModal = () => { state.isBatchModalOpen = false; updateModals(); setTimeout(()=>{state.batchStatus='idle';state.uploadBatch=[];}, 300); };
 
         window.handleSaveBatch = async () => {
-            if (!state.user) return;
-            state.batchStatus = 'saving';
-            updateModals();
-            
-            const photosRef = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
+            if (!state.user) return; state.batchStatus = 'saving'; updateModals();
             try {
+                const pRef = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
                 for (const item of state.uploadBatch) {
-                    await addDoc(photosRef, {
-                        url: item.url,
-                        ...item.suggestions,
-                        createdAt: Date.now()
-                    });
+                    const s = item.suggestions;
+                    const tags = [s.locationCity, s.locationDist, s.content, s.year, s.issue].filter(Boolean);
+                    let finalTitle = [...tags, s.customText || ''].filter(Boolean).join('-');
+                    await addDoc(pRef, { url: item.url, title: finalTitle || '未命名', content: s.content||'', year: s.year||'', issue: s.issue||'', locationCity: s.locationCity||'', locationDist: s.locationDist||'', createdAt: Date.now() });
                 }
                 window.closeBatchModal();
-            } catch (e) {
-                console.error("Error saving batch: ", e);
-                state.batchStatus = 'review';
-                updateModals();
-            }
+            } catch (e) { state.batchStatus = 'review'; updateModals(); }
         };
 
         lucide.createIcons(); 
-
-        // 已移除自動從 sessionStorage 讀取通關的設計，所以每次重新整理皆必須重新登入！
     </script>
 </body>
 </html>
