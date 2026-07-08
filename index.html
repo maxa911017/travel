@@ -16,7 +16,6 @@
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-        /* 隱藏原生 details 的標記 */
         details > summary { list-style: none; }
         details > summary::-webkit-details-marker { display: none; }
     </style>
@@ -53,7 +52,7 @@
             </div>
             <div class="p-5 flex-1 overflow-y-auto max-h-[40vh] md:max-h-none">
                 <div class="relative mb-6">
-                    <input type="text" id="searchInput" placeholder="搜尋關鍵字..." class="w-full pl-9 pr-3 py-2 bg-gray-100 border-transparent rounded-md text-sm focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all" />
+                    <input type="text" id="searchInput" placeholder="輸入完整照片名稱並按 Enter..." onkeydown="if(event.key === 'Enter') window.handleSearch(this.value)" class="w-full pl-9 pr-3 py-2 bg-gray-100 border-transparent rounded-md text-sm focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all" />
                     <i data-lucide="search" class="absolute left-3 top-2.5 text-gray-400 w-4 h-4"></i>
                 </div>
                 <div id="filters-container"></div>
@@ -67,12 +66,12 @@
                 <div class="flex items-center gap-4">
                     <button onclick="window.clearFilters()" class="text-sm text-gray-500 hover:text-gray-800 transition-colors">清除條件</button>
                     <input type="file" accept="image/*" multiple class="hidden" id="fileInput" onchange="window.handleBatchUpload(event)" />
-                    <button id="uploadBtn" onclick="document.getElementById('fileInput').click()" disabled class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-sm whitespace-nowrap cursor-pointer">
+                    <label for="fileInput" id="uploadBtnLabel" class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-sm whitespace-nowrap cursor-pointer opacity-50 pointer-events-none">
                         <i data-lucide="layers" class="w-4 h-4"></i> 批量上傳
-                    </button>
+                    </label>
                 </div>
             </header>
-            <div id="gallery-container" class="flex-1 overflow-y-auto p-4 md:p-6"></div>
+            <div id="gallery-container" onscroll="window.handleGalleryScroll(this)" class="flex-1 overflow-y-auto p-4 md:p-6"></div>
         </main>
 
         <!-- 3. 右側企劃板 -->
@@ -82,21 +81,7 @@
                     專案排版資源夾
                     <span id="moodboard-count" class="bg-blue-100 text-blue-700 text-xs py-0.5 px-2 rounded-full">0 張</span>
                 </h2>
-                <!-- 修改區：年份與期數設定 -->
-                <div class="flex gap-2">
-                    <div class="flex-1">
-                        <label class="block text-[10px] text-gray-400 font-bold mb-1 uppercase">發行年份</label>
-                        <select id="project-year" class="w-full bg-white border border-gray-200 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 outline-none">
-                            <option value="2026" selected>2026</option>
-                            <option value="2027">2027</option>
-                            <option value="2028">2028</option>
-                        </select>
-                    </div>
-                    <div class="flex-1">
-                        <label class="block text-[10px] text-gray-400 font-bold mb-1 uppercase">雜誌期數</label>
-                        <input type="text" id="project-issue" placeholder="Vol.12" class="w-full bg-white border border-gray-200 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 outline-none" />
-                    </div>
-                </div>
+                <div class="flex gap-2" id="project-export-settings"></div>
             </div>
             <div id="moodboard-items" class="flex-1 overflow-y-auto p-4 space-y-4 max-h-[40vh] md:max-h-none"></div>
             <div class="p-4 border-t border-gray-100 bg-white shrink-0">
@@ -114,36 +99,53 @@
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
         import { getAuth, signInAnonymously, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-        import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, setDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+        // 補上 getFirestore 作為不支援本地快取時的備用方案
+        import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, onSnapshot, addDoc, deleteDoc, doc, setDoc, query, where, orderBy, limit, startAfter, getDocs } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
         const firebaseConfig = typeof __firebase_config !== 'undefined' && __firebase_config ? JSON.parse(__firebase_config) : {
-            apiKey: "AIzaSyDhAILsfNhhf-WdeJa-utgz_PVy6zARVHA",
-            authDomain: "photo-e8d53.firebaseapp.com",
-            projectId: "photo-e8d53",
-            storageBucket: "photo-e8d53.firebasestorage.app",
-            messagingSenderId: "265524311162",
-            appId: "1:265524311162:web:d7d5897ba20155537c37c3",
-            measurementId: "G-1DW5BPSMV1"
+            apiKey: "AIzaSyAfB6THM5bJNd5wsBwpabMCkEak80xcMrc",
+            authDomain: "photo-ed222.firebaseapp.com",
+            databaseURL: "https://photo-ed222-default-rtdb.firebaseio.com",
+            projectId: "photo-ed222",
+            storageBucket: "photo-ed222.firebasestorage.app",
+            messagingSenderId: "51793855852",
+            appId: "1:51793855852:web:6131f60dc0fdb866a7df49",
+            measurementId: "G-DSFKWWLQV0"
         };
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
-        const db = getFirestore(app);
+        
+        let db;
+        // 【救命機制】：使用 try-catch 包覆資料庫初始化。
+        // 當使用者在無痕模式或阻擋快取的環境下，程式就不會崩潰，而是優雅降級回標準連線模式。
+        try {
+            db = initializeFirestore(app, {
+                localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+            });
+        } catch (error) {
+            console.warn("無法啟用本地快取 (可能處於無痕模式或瀏覽器不支援)，自動切換為標準連線：", error);
+            db = getFirestore(app);
+        }
+
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'travel-lens-prod';
 
         const SAMPLE_PHOTOS = [
-            { url: 'https://images.unsplash.com/photo-1493770348161-369560ae357d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: '法國巴黎-餐飲與美食-2026-Vol.12', content: '餐飲與美食', year: '2026', issue: 'Vol.12', locationCity: '法國-巴黎', locationDist: '' },
-            { url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: '台灣花蓮-自然與人文-2026-Vol.13', content: '自然與人文', year: '2026', issue: 'Vol.13', locationCity: '台灣-花蓮', locationDist: '秀林鄉' }
+            { url: 'https://images.unsplash.com/photo-1493770348161-369560ae357d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: '法國-巴黎-餐飲與美食-2026-Vol.12-早午餐特寫', customText: '早午餐特寫', content: '餐飲與美食', year: '2026', issue: 'Vol.12', locationCity: '法國-巴黎', locationDist: '' },
+            { url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: '台灣-花蓮-秀林鄉-自然與人文-2026-Vol.13-壯麗雲海', customText: '壯麗雲海', content: '自然與人文', year: '2026', issue: 'Vol.13', locationCity: '台灣-花蓮', locationDist: '秀林鄉' }
         ];
 
         const state = {
             user: null,
             photos: [],
+            lastVisibleDoc: null,
+            hasMore: true,
+            isFetching: false,
+            pageSize: 12,
             categories: {
                 content: ['景點與娛樂', '餐飲與美食', '住宿與交通', '自然與人文'], 
                 year: ['2026', '2027', '2028'],
                 issue: ['Vol.12', 'Vol.13', 'Vol.14'],
-                // 將地點改為樹狀結構： { "台灣-花蓮": ["花蓮市", "秀林鄉"], "日本-東京": ["新宿區"] }
                 locationHierarchy: {
                     '台灣-花蓮': ['花蓮市', '吉安鄉', '秀林鄉'],
                     '台灣-墾丁': ['恆春鎮'],
@@ -166,7 +168,6 @@
         };
 
         let unsubTags = null;
-        let unsubPhotos = null;
 
         window.handleLogin = (e) => {
             e.preventDefault();
@@ -198,100 +199,186 @@
 
         async function initApp() {
             let localUid = localStorage.getItem('travelLensUid');
+            
             try {
+                // 【補回 Firebase 安全機制】：確保程式具備向資料庫要資料的基礎通行證
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    const userCred = await signInWithCustomToken(auth, __initial_auth_token); localUid = userCred.user.uid;
+                    const userCred = await signInWithCustomToken(auth, __initial_auth_token); 
+                    localUid = userCred.user.uid;
                 } else {
-                    const userCred = await signInAnonymously(auth); localUid = userCred.user.uid;
+                    const userCred = await signInAnonymously(auth); 
+                    localUid = userCred.user.uid;
                 }
                 localStorage.setItem('travelLensUid', localUid);
             } catch (authError) {
-                console.warn("認證失敗", authError);
-                if (!localUid) { localUid = 'user-' + Math.random().toString(36).substr(2, 9); localStorage.setItem('travelLensUid', localUid); }
+                console.warn("認證異常，改用隨機連線：", authError);
+                if (!localUid) { 
+                    localUid = 'user-' + Math.random().toString(36).substr(2, 9); 
+                    localStorage.setItem('travelLensUid', localUid); 
+                }
             }
-            state.user = { uid: localUid }; updateUI();
+            
+            state.user = { uid: localUid }; 
+            renderAuthStatus(); 
+            updateFilters();
+            
             try {
                 const tagsRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'tags_v2');
                 unsubTags = onSnapshot(tagsRef, (docSnap) => {
                     if (docSnap.exists()) { state.categories = { ...state.categories, ...docSnap.data() }; updateFilters(); updateModals(); }
                 });
-                const photosRef = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
-                unsubPhotos = onSnapshot(photosRef, (snapshot) => {
-                    const fetchedPhotos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    fetchedPhotos.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-                    state.photos = fetchedPhotos; state.isLoading = false; updateGallery(); updateMoodBoard();
-                }, (error) => {
-                    console.error("Fetch photos error:", error); state.isLoading = false;
-                    if (error.code === 'permission-denied') {
-                        document.getElementById('gallery-container').innerHTML = `<div class="h-full flex flex-col items-center justify-center px-6 text-center animate-fadeIn"><i data-lucide="shield-alert" class="w-20 h-20 mb-4 text-red-500"></i><h2 class="font-bold text-2xl mb-2 text-gray-800">資料庫連線權限異常</h2></div>`; lucide.createIcons();
-                    } else updateGallery();
-                });
-            } catch (err) { console.error("Firestore Init Error:", err); }
+                
+                await window.fetchGalleryPage(true);
+            } catch (err) { console.error("初始化失敗:", err); }
         }
 
+        window.fetchGalleryPage = async (isFirstPage = false) => {
+            if (state.isFetching || (!isFirstPage && !state.hasMore)) return;
+            state.isFetching = true;
+            
+            if (isFirstPage) {
+                state.isLoading = true;
+                state.photos = [];
+                state.lastVisibleDoc = null;
+                state.hasMore = true;
+                renderGallery();
+            }
+            
+            try {
+                const photosColl = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
+                let q = query(photosColl);
+                
+                if (state.searchQuery) {
+                    q = query(q, where('title', '==', state.searchQuery));
+                }
+                state.filters.content.forEach(val => { q = query(q, where('content', '==', val)); });
+                state.filters.year.forEach(val => { q = query(q, where('year', '==', val)); });
+                state.filters.issue.forEach(val => { q = query(q, where('issue', '==', val)); });
+                state.filters.locationCity.forEach(val => { q = query(q, where('locationCity', '==', val)); });
+                
+                if (state.filters.locationDist.length > 0) {
+                    const selectedDistName = state.filters.locationDist[0].split('|')[1];
+                    q = query(q, where('locationDist', '==', selectedDistName));
+                }
+                
+                q = query(q, orderBy('createdAt', 'desc'));
+                if (!isFirstPage && state.lastVisibleDoc) {
+                    q = query(q, startAfter(state.lastVisibleDoc));
+                }
+                q = query(q, limit(state.pageSize));
+                
+                const snapshot = await getDocs(q);
+                
+                if (snapshot.empty) {
+                    if (isFirstPage) state.photos = [];
+                    state.hasMore = false;
+                } else {
+                    const fetched = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                    state.lastVisibleDoc = snapshot.docs[snapshot.docs.length - 1];
+                    state.photos = isFirstPage ? fetched : [...state.photos, ...fetched];
+                    if (snapshot.docs.length < state.pageSize) state.hasMore = false;
+                }
+            } catch (err) {
+                console.error("雲端分頁讀取失敗，如為多欄位篩選，請點擊主控台連結建立複合索引:", err);
+                if (isFirstPage) {
+                    document.getElementById('gallery-container').innerHTML = `
+                        <div class="p-4 text-center text-xs text-red-500 font-medium bg-red-50 rounded-lg">
+                            交叉篩選出錯。如果您同時勾選了多個欄位，請用電腦打開網頁並按下 F12 查看 Console，點選裡面的 Firebase 專屬連結建立「複合索引」即可恢復。
+                        </div>`;
+                    state.isLoading = false;
+                    state.isFetching = false;
+                    return;
+                }
+            }
+            
+            state.isLoading = false;
+            state.isFetching = false;
+            renderGallery();
+            renderMoodBoard();
+        };
+
+        window.handleGalleryScroll = (el) => {
+            if (el.scrollHeight - el.scrollTop <= el.clientHeight + 100) {
+                window.fetchGalleryPage(false);
+            }
+        };
+
+        window.handleSearch = (val) => {
+            state.searchQuery = val.trim();
+            window.fetchGalleryPage(true);
+        };
+
+        window.toggleFilter = (type, value) => {
+            const current = state.filters[type];
+            if (current.includes(value)) state.filters[type] = current.filter(item => item !== value);
+            else {
+                if (type === 'locationDist') state.filters[type] = [value];
+                else state.filters[type].push(value);
+            }
+            updateFilters();
+            window.fetchGalleryPage(true);
+        };
+
+        window.clearFilters = () => {
+            document.getElementById('searchInput').value = '';
+            state.searchQuery = '';
+            state.filters = { content: [], year: [], issue: [], locationCity: [], locationDist: [] };
+            updateFilters();
+            window.fetchGalleryPage(true);
+        };
+
         function renderAuthStatus() {
-            const el = document.getElementById('auth-status'); const btn = document.getElementById('uploadBtn');
+            const el = document.getElementById('auth-status'); const btnLabel = document.getElementById('uploadBtnLabel');
             if (state.user) {
-                el.innerHTML = `<span class="flex items-center text-green-600 bg-green-50 px-2 py-1 rounded-full"><i data-lucide="cloud" class="w-3 h-3 mr-1"></i> 雲端已連線</span>`;
-                if (btn) btn.disabled = false;
+                el.innerHTML = `<span class="flex items-center text-green-600 bg-green-50 px-2 py-1 rounded-full"><i data-lucide="cloud" class="w-3 h-3 mr-1"></i> 雲端(支援快取)連線正常</span>`;
+                if (btnLabel) btnLabel.classList.remove('opacity-50', 'pointer-events-none');
             } else {
-                el.innerHTML = `<span class="flex items-center text-red-500 bg-red-50 px-2 py-1 rounded-full"><i data-lucide="cloud-off" class="w-3 h-3 mr-1"></i> 雲端連線中...</span>`;
-                if (btn) btn.disabled = true;
+                el.innerHTML = `<span class="flex items-center text-red-500 bg-red-50 px-2 py-1 rounded-full"><i data-lucide="cloud-off" class="w-3 h-3 mr-1"></i> 連線中...</span>`;
+                if (btnLabel) btnLabel.classList.add('opacity-50', 'pointer-events-none');
             }
         }
 
         function renderFilters() {
-            const container = document.getElementById('filters-container');
-            let html = '';
-            
-            // 1. 內容與體驗
+            const container = document.getElementById('filters-container'); let html = '';
             html += renderFilterSection('content', '內容與體驗', 'bookmark', 'blue', state.categories.content);
-            // 2. 年份與期數 (移至左側供篩選)
             html += renderFilterSection('year', '發行年份', 'calendar', 'purple', state.categories.year);
             html += renderFilterSection('issue', '雜誌期數', 'book-open', 'orange', state.categories.issue);
             
-            // 3. 巢狀地理位置
             html += `
             <div class="mb-6">
                 <h3 class="text-sm font-semibold text-gray-900 mb-3 flex items-center justify-between">
                     <div class="flex items-center gap-2"><i data-lucide="map-pin" class="text-green-500 w-4 h-4"></i> 地理位置 (巢狀)</div>
-                    <button onclick="window.openAddTagModal('locationCity')" class="text-gray-400 hover:text-green-600 bg-gray-100 hover:bg-green-50 p-1 rounded-full transition-colors" title="新增國家/縣市"><i data-lucide="plus" class="w-3 h-3"></i></button>
+                    <button onclick="window.openAddTagModal('locationCity')" class="text-gray-400 hover:text-green-600 bg-gray-100 hover:bg-green-50 p-1 rounded-full transition-colors"><i data-lucide="plus" class="w-3 h-3"></i></button>
                 </h3>
             `;
-            
             Object.keys(state.categories.locationHierarchy).forEach(city => {
-                const dists = state.categories.locationHierarchy[city];
-                const isCityChecked = state.filters.locationCity.includes(city);
-                
+                const dists = state.categories.locationHierarchy[city]; const isCityChecked = state.filters.locationCity.includes(city);
                 html += `
                 <details class="mb-2 group/details">
                     <summary class="flex items-center justify-between cursor-pointer py-1 hover:bg-gray-50 rounded select-none">
                         <div class="flex items-center gap-2 flex-1 pl-1">
                             <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-gray-400 transition-transform group-open/details:rotate-90"></i>
                             <label class="flex items-center space-x-2 cursor-pointer flex-1" onclick="event.stopPropagation(); window.toggleFilter('locationCity', '${city}')">
-                                <div class="w-4 h-4 rounded border flex items-center justify-center transition-colors ${isCityChecked ? 'bg-green-600 border-green-600' : 'border-gray-300 hover:border-green-500'}">
+                                <div class="w-4 h-4 rounded border flex items-center justify-center transition-colors ${isCityChecked ? 'bg-green-600 border-green-600' : 'border-gray-300'}">
                                     ${isCityChecked ? '<i data-lucide="check" class="text-white w-3 h-3"></i>' : ''}
                                 </div>
                                 <span class="text-sm font-medium ${isCityChecked ? 'text-green-700' : 'text-gray-700'}">${city}</span>
                             </label>
                         </div>
                         <div class="flex items-center gap-1 opacity-0 group-hover/details:opacity-100">
-                            <button onclick="event.preventDefault(); window.openAddTagModal('locationDist', '${city}')" class="text-gray-400 hover:text-green-600 p-1" title="在此新增鄉鎮區"><i data-lucide="plus" class="w-3 h-3"></i></button>
-                            <button onclick="event.preventDefault(); window.handleDeleteTag('locationCity', '${city}')" class="text-gray-400 hover:text-red-500 p-1" title="刪除"><i data-lucide="x" class="w-3 h-3"></i></button>
+                            <button onclick="event.preventDefault(); window.openAddTagModal('locationDist', '${city}')" class="text-gray-400 hover:text-green-600 p-1"><i data-lucide="plus" class="w-3 h-3"></i></button>
+                            <button onclick="event.preventDefault(); window.handleDeleteTag('locationCity', '${city}')" class="text-gray-400 hover:text-red-500 p-1"><i data-lucide="x" class="w-3 h-3"></i></button>
                         </div>
                     </summary>
-                    <div class="pl-7 mt-1 space-y-1">
-                `;
-                
-                if (dists.length === 0) {
-                    html += `<p class="text-xs text-gray-400 italic pl-6 py-1">無子區域</p>`;
-                } else {
+                    <div class="pl-7 mt-1 space-y-1">`;
+                if (!dists.length) html += `<p class="text-xs text-gray-400 italic pl-6 py-1">無子區域</p>`;
+                else {
                     dists.forEach(dist => {
                         const isDistChecked = state.filters.locationDist.includes(`${city}|${dist}`);
                         html += `
                         <div class="flex items-center justify-between group py-0.5">
                             <label class="flex items-center space-x-2 cursor-pointer flex-1 pl-1" onclick="event.preventDefault(); window.toggleFilter('locationDist', '${city}|${dist}')">
-                                <div class="w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors ${isDistChecked ? 'bg-green-500 border-green-500' : 'border-gray-300 hover:border-green-400'}">
+                                <div class="w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors ${isDistChecked ? 'bg-green-500 border-green-500' : 'border-gray-300'}">
                                     ${isDistChecked ? '<i data-lucide="check" class="text-white w-2.5 h-2.5"></i>' : ''}
                                 </div>
                                 <span class="text-sm text-gray-600">${dist}</span>
@@ -302,79 +389,46 @@
                 }
                 html += `</div></details>`;
             });
-            html += `</div>`;
-            container.innerHTML = html;
+            container.innerHTML = html + `</div>`;
         }
 
         function renderFilterSection(id, title, icon, color, options) {
-            let html = `
-            <div class="mb-6">
-                <h3 class="text-sm font-semibold text-gray-900 mb-3 flex items-center justify-between">
-                    <div class="flex items-center gap-2"><i data-lucide="${icon}" class="text-${color}-500 w-4 h-4"></i> ${title}</div>
-                    <button onclick="window.openAddTagModal('${id}')" class="text-gray-400 hover:text-${color}-600 bg-gray-100 hover:bg-${color}-50 p-1 rounded-full transition-colors" title="新增標籤"><i data-lucide="plus" class="w-3 h-3"></i></button>
-                </h3>
-            `;
+            let html = `<div class="mb-6"><h3 class="text-sm font-semibold text-gray-900 mb-3 flex items-center justify-between"><div class="flex items-center gap-2"><i data-lucide="${icon}" class="text-${color}-500 w-4 h-4"></i> ${title}</div><button onclick="window.openAddTagModal('${id}')" class="text-gray-400 hover:text-${color}-600 bg-gray-100 hover:bg-${color}-50 p-1 rounded-full"><i data-lucide="plus" class="w-3 h-3"></i></button></h3>`;
             (options || []).forEach(cat => {
                 const isChecked = state.filters[id].includes(cat);
                 html += `
                 <div class="flex items-center justify-between group mb-2 pl-1">
                     <label class="flex items-center space-x-2 cursor-pointer flex-1" onclick="event.preventDefault(); window.toggleFilter('${id}', '${cat}')">
-                        <div class="w-4 h-4 rounded border flex items-center justify-center transition-colors ${isChecked ? `bg-${color}-600 border-${color}-600` : `border-gray-300 group-hover:border-${color}-500`}">
+                        <div class="w-4 h-4 rounded border flex items-center justify-center transition-colors ${isChecked ? `bg-${color}-600 border-${color}-600` : `border-gray-300`}">
                             ${isChecked ? '<i data-lucide="check" class="text-white w-3 h-3"></i>' : ''}
                         </div>
                         <span class="text-sm text-gray-700">${cat}</span>
                     </label>
-                    <button onclick="window.handleDeleteTag('${id}', '${cat}', event)" class="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded" title="刪除標籤">
-                        <i data-lucide="x" class="w-3 h-3"></i>
-                    </button>
+                    <button onclick="window.handleDeleteTag('${id}', '${cat}', event)" class="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 p-1"><i data-lucide="x" class="w-3 h-3"></i></button>
                 </div>`;
             });
-            html += `</div>`;
-            return html;
+            return html + `</div>`;
         }
 
         function renderGallery() {
-            const container = document.getElementById('gallery-container');
-            const stats = document.getElementById('gallery-stats');
+            const container = document.getElementById('gallery-container'); const stats = document.getElementById('gallery-stats');
             if (container.innerHTML.includes('資料庫連線權限異常')) return;
 
-            const filteredPhotos = state.photos.filter(photo => {
-                const matchSearch = photo.title.toLowerCase().includes(state.searchQuery.toLowerCase()) || 
-                                    (photo.locationCity && photo.locationCity.toLowerCase().includes(state.searchQuery.toLowerCase())) ||
-                                    (photo.locationDist && photo.locationDist.toLowerCase().includes(state.searchQuery.toLowerCase()));
-                const matchContent = state.filters.content.length === 0 || state.filters.content.includes(photo.content);
-                const matchYear = state.filters.year.length === 0 || state.filters.year.includes(photo.year);
-                const matchIssue = state.filters.issue.length === 0 || state.filters.issue.includes(photo.issue);
-                
-                // 巢狀地點過濾邏輯
-                let matchLocation = true;
-                if (state.filters.locationCity.length > 0 || state.filters.locationDist.length > 0) {
-                    const cityMatch = state.filters.locationCity.includes(photo.locationCity);
-                    const distMatch = state.filters.locationDist.includes(`${photo.locationCity}|${photo.locationDist}`);
-                    matchLocation = cityMatch || distMatch;
-                }
-                
-                return matchSearch && matchContent && matchYear && matchIssue && matchLocation;
-            });
-
-            stats.innerHTML = `<i data-lucide="filter" class="w-4 h-4"></i> 共 ${state.photos.length} 張 / 篩選 ${filteredPhotos.length} 張`;
+            stats.innerHTML = `<i data-lucide="filter" class="w-4 h-4"></i> 當前分頁顯示 ${state.photos.length} 張素材 ${state.hasMore ? '(往下滑動載入更多)' : '(已載入全部)'}`;
 
             if (state.isLoading) {
-                container.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400"><i data-lucide="refresh-cw" class="animate-spin mb-4 text-blue-500 w-8 h-8"></i><p>載入圖庫中...</p></div>`; return;
+                container.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400 py-20"><i data-lucide="refresh-cw" class="animate-spin mb-4 text-blue-500 w-8 h-8"></i><p>正在自雲端分頁加載中...</p></div>`; return;
             }
             if (state.photos.length === 0) {
-                container.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400 py-10"><i data-lucide="image" class="w-16 h-16 mb-4 opacity-20"></i><p class="mb-6 text-sm">圖庫目前是空的</p><button onclick="window.handleImportSamples()" class="px-6 py-2 bg-gray-900 text-white rounded-lg">匯入範例</button></div>`; return;
-            }
-            if (filteredPhotos.length === 0) {
-                 container.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400 py-10"><i data-lucide="filter" class="w-12 h-12 mb-4 opacity-20"></i><p>沒有符合條件的照片</p></div>`; return;
+                container.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400 py-10"><i data-lucide="image" class="w-16 h-16 mb-4 opacity-20"></i><p class="mb-4 text-sm">此篩選條件下沒有照片</p><button onclick="window.handleImportSamples()" class="px-6 py-2 bg-gray-900 text-white rounded-lg">導入範例照片</button></div>`; return;
             }
 
             let html = `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">`;
-            filteredPhotos.forEach(photo => {
+            state.photos.forEach(photo => {
                 const isSelected = state.moodBoard.some(p => p.id === photo.id);
                 const locDisplay = [photo.locationCity, photo.locationDist].filter(Boolean).join(', ');
                 html += `
-                    <div class="group bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col">
+                    <div class="group bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col animate-fadeIn">
                         <div class="relative aspect-video bg-gray-200 overflow-hidden shrink-0">
                             <img src="${photo.url}" alt="${photo.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                             <button onclick="window.toggleMoodBoard('${photo.id}')" class="absolute top-2 right-2 p-2 md:p-1.5 rounded-full shadow-sm backdrop-blur-sm z-10 ${isSelected ? 'bg-blue-600 text-white' : 'bg-white/80 text-gray-700 hover:bg-white'}">
@@ -384,7 +438,7 @@
                                 <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
                             </button>
                             <div class="absolute bottom-2 left-2 flex gap-1 z-10">
-                                <span class="px-2 py-1 text-[10px] font-medium bg-black/60 text-white rounded backdrop-blur-sm shadow-sm flex items-center gap-1">
+                                <span class="px-2 py-1 text-[10px] font-medium bg-black/60 text-white rounded backdrop-blur-sm flex items-center gap-1">
                                     <i data-lucide="calendar" class="w-2.5 h-2.5"></i> ${photo.year || '無年份'} | ${photo.issue || '無期數'}
                                 </span>
                             </div>
@@ -399,31 +453,43 @@
                     </div>`;
             });
             html += `</div>`;
+            
+            if (state.isFetching && state.photos.length > 0) {
+                html += `<div class="text-center py-4 text-xs text-gray-400 flex items-center justify-center gap-2"><i data-lucide="refresh-cw" class="w-4 h-4 animate-spin"></i> 正在翻頁讀取中...</div>`;
+            }
             container.innerHTML = html;
+            lucide.createIcons();
         }
 
         function renderMoodBoard() {
-            const container = document.getElementById('moodboard-items');
-            const countEl = document.getElementById('moodboard-count');
-            const btn = document.getElementById('exportBtn');
+            const container = document.getElementById('moodboard-items'); const countEl = document.getElementById('moodboard-count');
+            const btn = document.getElementById('exportBtn'); const settingsContainer = document.getElementById('project-export-settings');
+            const currentYear = document.getElementById('project-year')?.value || ''; const currentIssue = document.getElementById('project-issue')?.value || '';
+
+            settingsContainer.innerHTML = `
+                <div class="flex-1">
+                    <label class="block text-[10px] text-gray-400 font-bold mb-1 uppercase">發行年份</label>
+                    <select id="project-year" class="w-full bg-white border border-gray-200 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 outline-none">
+                        <option value="" disabled ${!currentYear ? 'selected' : ''}>請選擇</option>
+                        ${(state.categories.year || []).map(y => `<option value="${y}" ${currentYear === y ? 'selected' : ''}>${y}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="flex-1">
+                    <label class="block text-[10px] text-gray-400 font-bold mb-1 uppercase">雜誌期數</label>
+                    <select id="project-issue" class="w-full bg-white border border-gray-200 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 outline-none">
+                        <option value="" disabled ${!currentIssue ? 'selected' : ''}>請選擇</option>
+                        ${(state.categories.issue || []).map(i => `<option value="${i}" ${currentIssue === i ? 'selected' : ''}>${i}</option>`).join('')}
+                    </select>
+                </div>`;
 
             countEl.innerText = `${state.moodBoard.length} 張`;
             if (state.moodBoard.length === 0) {
-                container.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-center text-gray-400 space-y-3 px-4 py-8"><i data-lucide="folder-open" class="w-8 h-8 opacity-20"></i><p class="text-sm">尚未加入任何素材</p></div>`;
+                container.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-center text-gray-400 space-y-3 px-4 py-8"><i data-lucide="folder-open" class="w-8 h-8 opacity-20"></i><p class="text-sm">尚未加入素材</p></div>`;
                 btn.disabled = true; btn.className = "w-full py-2.5 rounded-md text-sm font-medium bg-gray-100 text-gray-400 cursor-not-allowed";
             } else {
                 let html = '';
                 state.moodBoard.forEach(photo => {
-                    html += `
-                    <div class="relative group bg-gray-50 rounded-md p-2 flex gap-3 border border-gray-100">
-                        <img src="${photo.url}" class="w-12 h-12 object-cover rounded shadow-sm" />
-                        <div class="flex-1 min-w-0 flex flex-col justify-center">
-                            <h5 class="text-sm font-medium text-gray-900 truncate">${photo.title}</h5>
-                        </div>
-                        <button onclick="window.toggleMoodBoard('${photo.id}')" class="absolute -top-1.5 -right-1.5 bg-white border shadow-sm text-gray-400 hover:text-red-500 rounded-full p-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
-                        </button>
-                    </div>`;
+                    html += `<div class="relative group bg-gray-50 rounded-md p-2 flex gap-3 border border-gray-100"><img src="${photo.url}" class="w-12 h-12 object-cover rounded shadow-sm" /><div class="flex-1 min-w-0 flex flex-col justify-center"><h5 class="text-sm font-medium text-gray-900 truncate">${photo.title}</h5></div><button onclick="window.toggleMoodBoard('${photo.id}')" class="absolute -top-1.5 -right-1.5 bg-white border shadow-sm text-gray-400 hover:text-red-500 rounded-full p-1 opacity-100 md:opacity-0 group-hover:opacity-100"><i data-lucide="x" class="w-3.5 h-3.5"></i></button></div>`;
                 });
                 container.innerHTML = html;
                 btn.disabled = false; btn.className = "w-full py-2.5 rounded-md text-sm font-medium transition-colors bg-gray-900 text-white hover:bg-gray-800 shadow-md";
@@ -444,157 +510,108 @@
         }
 
         function renderModals() {
-            const container = document.getElementById('modals-container');
-            let html = '';
+            const container = document.getElementById('modals-container'); let html = '';
 
-            // 批量上傳 Modal
             if (state.isBatchModalOpen) {
                 html += `
                 <div class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4 md:p-8">
                     <div class="bg-white rounded-xl shadow-2xl w-full max-w-5xl h-full max-h-[90vh] flex flex-col overflow-hidden animate-fadeIn">
                         <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 shrink-0">
-                            <div class="flex items-center gap-3">
-                                <div class="bg-blue-100 text-blue-600 p-2 rounded-lg"><i data-lucide="layers" class="w-5 h-5"></i></div>
-                                <div>
-                                    <h2 class="font-bold text-gray-900 text-lg">批量 AI 視覺解析與校對</h2>
-                                    <p class="text-xs text-gray-500">正在處理 ${state.uploadBatch.length} 張照片</p>
-                                </div>
-                            </div>
+                            <div class="flex items-center gap-3"><div class="bg-blue-100 text-blue-600 p-2 rounded-lg"><i data-lucide="layers" class="w-5 h-5"></i></div><div><h2 class="font-bold text-gray-900 text-lg">批量 AI 視覺解析與校對</h2><p class="text-xs text-gray-500">正在處理 ${state.uploadBatch.length} 張照片</p></div></div>
                             ${state.batchStatus === 'analyzing' ? `<div class="flex items-center gap-2 text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full text-sm font-medium"><i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> 處理中...</div>` : ''}
                         </div>
-                        <div class="flex-1 overflow-y-auto bg-gray-100/50 p-4 md:p-6 space-y-4">
+                        <div id="batch-modal-content" class="flex-1 overflow-y-auto bg-gray-100/50 p-4 md:p-6 space-y-4">
                             ${state.uploadBatch.map((item, index) => {
                                 const tagPrefix = [item.suggestions.locationCity, item.suggestions.locationDist, item.suggestions.content, item.suggestions.year, item.suggestions.issue].filter(Boolean).join('-');
-                                const cityOpts = Object.keys(state.categories.locationHierarchy);
-                                const distOpts = item.suggestions.locationCity ? state.categories.locationHierarchy[item.suggestions.locationCity] : [];
-                                
+                                const cityOpts = Object.keys(state.categories.locationHierarchy); const distOpts = item.suggestions.locationCity ? state.categories.locationHierarchy[item.suggestions.locationCity] : [];
                                 return `
                                 <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col lg:flex-row gap-5 relative">
                                     <div class="w-full lg:w-56 h-40 lg:h-auto lg:aspect-[4/3] rounded-lg overflow-hidden relative shrink-0 bg-gray-100 border border-gray-100">
                                         <img src="${item.url}" class="w-full h-full object-cover" />
-                                        ${state.batchStatus === 'analyzing' ? `<div class="absolute inset-0 bg-blue-900/40 flex items-center justify-center backdrop-blur-[1px]"><div class="absolute top-0 left-0 w-full h-0.5 bg-blue-400 shadow-[0_0_10px_#60a5fa] scan-line" style="animation-delay: ${index * 0.2}s"></div><i data-lucide="sparkles" class="w-6 h-6 text-white animate-pulse"></i></div>` : ''}
                                     </div>
-                                    <div class="flex-1 flex flex-col justify-center min-w-0 py-1 ${state.batchStatus === 'analyzing' || state.batchStatus === 'saving' ? 'opacity-50 pointer-events-none' : ''}">
-                                        
+                                    <div class="flex-1 flex flex-col justify-center min-w-0 py-1">
                                         <div class="flex flex-col gap-1 mb-4">
-                                            <div class="flex items-center justify-between">
-                                                <label class="text-[10px] uppercase font-bold text-gray-400 flex items-center gap-1"><i data-lucide="tag" class="w-3 h-3"></i> 最終命名</label>
-                                                <button onclick="window.removeBatchItem('${item.id}')" class="text-gray-400 hover:text-red-500 p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                                            </div>
+                                            <div class="flex items-center justify-between"><label class="text-[10px] uppercase font-bold text-gray-400 flex items-center gap-1"><i data-lucide="tag" class="w-3 h-3"></i> 最終命名</label><button onclick="window.removeBatchItem('${item.id}')" class="text-gray-400 hover:text-red-500 p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div>
                                             <div class="flex flex-col sm:flex-row sm:items-center gap-2 bg-gray-50 border border-gray-200 rounded-md p-2">
                                                 <span class="text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-1.5 rounded truncate shrink-0 max-w-full sm:max-w-[200px]">${tagPrefix || '無標籤'}</span>
                                                 <span class="text-gray-400 font-bold hidden sm:block">+</span>
                                                 <input type="text" value="${item.suggestions.customText || ''}" oninput="window.updateBatchItemCustomText('${item.id}', this.value)" placeholder="自訂文字..." class="font-medium text-gray-900 border-b border-transparent hover:border-gray-300 focus:border-blue-500 bg-transparent outline-none px-1 py-1 w-full min-w-0 transition-colors" />
                                             </div>
                                         </div>
-
                                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                                             <div>
-                                                <div class="flex items-center justify-between mb-2">
-                                                    <label class="text-[10px] uppercase font-bold text-gray-400">國家/縣市</label>
-                                                </div>
+                                                <div class="flex items-center justify-between mb-2"><label class="text-[10px] uppercase font-bold text-gray-400">國家/縣市</label><button onclick="window.openAddTagModal('locationCity')" class="text-green-400 p-0.5 rounded-full"><i data-lucide="plus" class="w-3 h-3"></i></button></div>
                                                 ${createPillGroup('updateBatchItem', item.id, 'locationCity', cityOpts, item.suggestions.locationCity, 'bg-green-50 border-green-200 text-green-700')}
                                             </div>
                                             <div>
-                                                <div class="flex items-center justify-between mb-2">
-                                                    <label class="text-[10px] uppercase font-bold text-gray-400">鄉鎮市區</label>
-                                                </div>
-                                                ${item.suggestions.locationCity ? 
-                                                    (distOpts.length > 0 ? createPillGroup('updateBatchItem', item.id, 'locationDist', distOpts, item.suggestions.locationDist, 'bg-green-100 border-green-300 text-green-800') : '<p class="text-[11px] text-gray-400 py-1">該縣市尚無區域名單，可由側邊欄新增</p>') 
-                                                    : '<p class="text-[11px] text-gray-400 py-1">請先選擇左側的國家/縣市</p>'}
+                                                <div class="flex items-center justify-between mb-2"><label class="text-[10px] uppercase font-bold text-gray-400">鄉鎮市區</label>${item.suggestions.locationCity ? `<button onclick="window.openAddTagModal('locationDist', '${item.suggestions.locationCity}')" class="text-green-400 p-0.5 rounded-full"><i data-lucide="plus" class="w-3 h-3"></i></button>` : ''}</div>
+                                                ${item.suggestions.locationCity ? (distOpts.length > 0 ? createPillGroup('updateBatchItem', item.id, 'locationDist', distOpts, item.suggestions.locationDist, 'bg-green-100 border-green-300 text-green-800') : '<p class="text-[11px] text-gray-400 py-1">無選項，請點 + 號新增</p>') : '<p class="text-[11px] text-gray-400 py-1">請先選縣市</p>'}
                                             </div>
                                         </div>
-                                        
                                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                             <div>
-                                                <div class="flex items-center justify-between mb-2">
-                                                    <label class="text-[10px] uppercase font-bold text-gray-400">內容體驗</label>
-                                                    <button onclick="window.openAddTagModal('content')" class="text-blue-400 hover:text-blue-600 bg-blue-50 hover:bg-blue-100 p-0.5 rounded-full"><i data-lucide="plus" class="w-3 h-3"></i></button>
-                                                </div>
+                                                <div class="flex items-center justify-between mb-2"><label class="text-[10px] uppercase font-bold text-gray-400">內容體驗</label><button onclick="window.openAddTagModal('content')" class="text-blue-400 p-0.5 rounded-full"><i data-lucide="plus" class="w-3 h-3"></i></button></div>
                                                 ${createPillGroup('updateBatchItem', item.id, 'content', state.categories.content, item.suggestions.content, 'bg-blue-50 border-blue-200 text-blue-700')}
                                             </div>
                                             <div>
-                                                <div class="flex items-center justify-between mb-2">
-                                                    <label class="text-[10px] uppercase font-bold text-gray-400">發行年份</label>
-                                                    <button onclick="window.openAddTagModal('year')" class="text-purple-400 hover:text-purple-600 bg-purple-50 hover:bg-purple-100 p-0.5 rounded-full"><i data-lucide="plus" class="w-3 h-3"></i></button>
-                                                </div>
+                                                <div class="flex items-center justify-between mb-2"><label class="text-[10px] uppercase font-bold text-gray-400">發行年份</label><button onclick="window.openAddTagModal('year')" class="text-purple-400 p-0.5 rounded-full"><i data-lucide="plus" class="w-3 h-3"></i></button></div>
                                                 ${createPillGroup('updateBatchItem', item.id, 'year', state.categories.year, item.suggestions.year, 'bg-purple-50 border-purple-200 text-purple-700')}
                                             </div>
                                             <div>
-                                                <div class="flex items-center justify-between mb-2">
-                                                    <label class="text-[10px] uppercase font-bold text-gray-400">雜誌期數</label>
-                                                    <button onclick="window.openAddTagModal('issue')" class="text-orange-400 hover:text-orange-600 bg-orange-50 hover:bg-orange-100 p-0.5 rounded-full"><i data-lucide="plus" class="w-3 h-3"></i></button>
-                                                </div>
+                                                <div class="flex items-center justify-between mb-2"><label class="text-[10px] uppercase font-bold text-gray-400">雜誌期數</label><button onclick="window.openAddTagModal('issue')" class="text-orange-400 p-0.5 rounded-full"><i data-lucide="plus" class="w-3 h-3"></i></button></div>
                                                 ${createPillGroup('updateBatchItem', item.id, 'issue', state.categories.issue, item.suggestions.issue, 'bg-orange-50 border-orange-200 text-orange-700')}
                                             </div>
                                         </div>
-
                                     </div>
                                 </div>`;
                             }).join('')}
                         </div>
                         <div class="px-6 py-4 border-t border-gray-200 bg-white flex justify-between items-center shrink-0">
-                            <button onclick="window.closeBatchModal()" ${state.batchStatus === 'saving' ? 'disabled' : ''} class="px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition-colors text-sm disabled:opacity-50">取消</button>
-                            <button onclick="window.handleSaveBatch()" ${state.batchStatus === 'analyzing' || state.batchStatus === 'saving' ? 'disabled' : ''} class="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:bg-blue-400 transition-colors shadow-sm">
-                                ${state.batchStatus === 'analyzing' ? '等待解析...' : state.batchStatus === 'saving' ? '<i data-lucide="loader-2" class="w-4.5 h-4.5 animate-spin"></i> 儲存中...' : `確認收錄 (${state.uploadBatch.length}張)`}
-                            </button>
+                            <button onclick="window.closeBatchModal()" ${state.batchStatus === 'saving' ? 'disabled' : ''} class="px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg text-sm">取消</button>
+                            <button onclick="window.handleSaveBatch()" ${state.batchStatus === 'analyzing' || state.batchStatus === 'saving' ? 'disabled' : ''} class="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-sm">確認收錄 (${state.uploadBatch.length}張)</button>
                         </div>
                     </div>
                 </div>`;
             }
 
-            // 編輯 Modal
             if (state.editModal.isOpen && state.editModal.photo) {
                 const photo = state.editModal.photo;
-                const cityOpts = Object.keys(state.categories.locationHierarchy);
-                const distOpts = photo.locationCity ? state.categories.locationHierarchy[photo.locationCity] : [];
-                
+                const cityOpts = Object.keys(state.categories.locationHierarchy); const distOpts = photo.locationCity ? state.categories.locationHierarchy[photo.locationCity] : [];
+                const tagPrefix = [photo.locationCity, photo.locationDist, photo.content, photo.year, photo.issue].filter(Boolean).join('-');
                 html += `
                 <div class="fixed inset-0 z-[105] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm px-4 py-6">
                     <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-full animate-fadeIn">
-                        <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center gap-2 shrink-0">
-                            <i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i>
-                            <h3 class="font-bold text-gray-900">編輯照片屬性</h3>
-                        </div>
-                        <div class="p-6 overflow-y-auto space-y-6">
-                            <div>
-                                <label class="block text-xs font-medium text-gray-700 mb-2">完整照片名稱</label>
-                                <input type="text" value="${photo.title}" oninput="window.updateEditModalTitle(this.value)" class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-shadow" />
+                        <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center gap-2 shrink-0"><i data-lucide="pencil" class="w-4 h-4 text-gray-500"></i><h3 class="font-bold text-gray-900">編輯照片屬性</h3></div>
+                        <div id="edit-modal-content" class="p-6 overflow-y-auto space-y-6">
+                            <div class="flex flex-col gap-1 mb-2">
+                                <label class="text-[10px] uppercase font-bold text-gray-500 flex items-center gap-1"><i data-lucide="tag" class="w-3 h-3"></i> 最終組合命名 (即時連動變更)</label>
+                                <div class="flex flex-col sm:flex-row sm:items-center gap-2 bg-white border border-gray-300 rounded-md p-2">
+                                    <span class="text-xs font-semibold text-blue-700 bg-blue-100 px-2 py-1.5 rounded truncate shrink-0 max-w-full sm:max-w-[200px]">${tagPrefix || '無標籤'}</span>
+                                    <span class="text-gray-400 font-bold hidden sm:block">+</span>
+                                    <input type="text" value="${photo.customText || ''}" oninput="window.updateEditModalCustomText(this.value)" placeholder="自訂文字..." class="font-medium text-gray-900 border-b border-transparent hover:border-gray-300 focus:border-blue-500 bg-transparent outline-none px-1 py-1 w-full min-w-0 transition-colors" />
+                                </div>
                             </div>
-                            
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-green-50/50 rounded-lg border border-green-100">
                                 <div>
-                                    <label class="block text-[10px] uppercase font-bold text-gray-500 mb-2">地理位置：國家/縣市</label>
+                                    <div class="flex items-center justify-between mb-2"><label class="block text-[10px] uppercase font-bold text-gray-500">地理位置：國家/縣市</label><button onclick="window.openAddTagModal('locationCity')" class="text-green-400 p-0.5 rounded-full"><i data-lucide="plus" class="w-3 h-3"></i></button></div>
                                     ${createPillGroup('updateEditModalField', null, 'locationCity', cityOpts, photo.locationCity, 'bg-green-100 border-green-300 text-green-800')}
                                 </div>
                                 <div>
-                                    <label class="block text-[10px] uppercase font-bold text-gray-500 mb-2">地理位置：鄉鎮區</label>
-                                    ${photo.locationCity ? 
-                                        (distOpts.length > 0 ? createPillGroup('updateEditModalField', null, 'locationDist', distOpts, photo.locationDist, 'bg-green-200 border-green-400 text-green-900') : '<p class="text-[11px] text-gray-500">該縣市無區域選項</p>') 
-                                        : '<p class="text-[11px] text-gray-400">請先選擇左側縣市</p>'}
+                                    <div class="flex items-center justify-between mb-2"><label class="block text-[10px] uppercase font-bold text-gray-500">地理位置：鄉鎮區</label>${photo.locationCity ? `<button onclick="window.openAddTagModal('locationDist', '${photo.locationCity}')" class="text-green-400 p-0.5 rounded-full"><i data-lucide="plus" class="w-3 h-3"></i></button>` : ''}</div>
+                                    ${photo.locationCity ? (distOpts.length > 0 ? createPillGroup('updateEditModalField', null, 'locationDist', distOpts, photo.locationDist, 'bg-green-200 border-green-400 text-green-900') : '<p class="text-[11px] text-gray-500">無區域選項，點 + 新增</p>') : '<p class="text-[11px] text-gray-400">請先選左側縣市</p>'}
                                 </div>
                             </div>
-
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
-                                    <div class="flex items-center justify-between mb-2">
-                                        <label class="block text-[10px] uppercase font-bold text-gray-400">內容分類</label>
-                                        <button onclick="window.openAddTagModal('content')" class="text-blue-400 hover:text-blue-600 bg-blue-50 hover:bg-blue-100 p-0.5 rounded-full"><i data-lucide="plus" class="w-3 h-3"></i></button>
-                                    </div>
+                                    <div class="flex items-center justify-between mb-2"><label class="block text-[10px] uppercase font-bold text-gray-400">內容分類</label><button onclick="window.openAddTagModal('content')" class="text-blue-400 p-0.5 rounded-full"><i data-lucide="plus" class="w-3 h-3"></i></button></div>
                                     ${createPillGroup('updateEditModalField', null, 'content', state.categories.content, photo.content, 'bg-blue-50 border-blue-200 text-blue-700')}
                                 </div>
                                 <div>
-                                    <div class="flex items-center justify-between mb-2">
-                                        <label class="block text-[10px] uppercase font-bold text-gray-400">發行年份</label>
-                                        <button onclick="window.openAddTagModal('year')" class="text-purple-400 hover:text-purple-600 bg-purple-50 hover:bg-purple-100 p-0.5 rounded-full"><i data-lucide="plus" class="w-3 h-3"></i></button>
-                                    </div>
+                                    <div class="flex items-center justify-between mb-2"><label class="block text-[10px] uppercase font-bold text-gray-400">發行年份</label><button onclick="window.openAddTagModal('year')" class="text-purple-400 p-0.5 rounded-full"><i data-lucide="plus" class="w-3 h-3"></i></button></div>
                                     ${createPillGroup('updateEditModalField', null, 'year', state.categories.year, photo.year, 'bg-purple-50 border-purple-200 text-purple-700')}
                                 </div>
                                 <div>
-                                    <div class="flex items-center justify-between mb-2">
-                                        <label class="block text-[10px] uppercase font-bold text-gray-400">雜誌期數</label>
-                                        <button onclick="window.openAddTagModal('issue')" class="text-orange-400 hover:text-orange-600 bg-orange-50 hover:bg-orange-100 p-0.5 rounded-full"><i data-lucide="plus" class="w-3 h-3"></i></button>
-                                    </div>
+                                    <div class="flex items-center justify-between mb-2"><label class="block text-[10px] uppercase font-bold text-gray-400">雜誌期數</label><button onclick="window.openAddTagModal('issue')" class="text-orange-400 p-0.5 rounded-full"><i data-lucide="plus" class="w-3 h-3"></i></button></div>
                                     ${createPillGroup('updateEditModalField', null, 'issue', state.categories.issue, photo.issue, 'bg-orange-50 border-orange-200 text-orange-700')}
                                 </div>
                             </div>
@@ -602,129 +619,95 @@
                         <div class="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center shrink-0">
                             <button onclick="window.handleDeletePhoto('${photo.id}')" class="text-red-500 hover:text-red-700 text-sm font-medium transition-colors flex items-center gap-1"><i data-lucide="trash-2" class="w-4 h-4"></i> 刪除</button>
                             <div class="flex gap-2">
-                                <button onclick="window.closeEditModal()" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-200 rounded-md transition-colors font-medium">取消</button>
-                                <button onclick="window.savePhotoEdit()" class="px-5 py-2 text-sm bg-gray-900 text-white hover:bg-gray-800 rounded-md transition-colors shadow-sm font-medium">儲存</button>
+                                <button onclick="window.closeEditModal()" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-200 rounded-md font-medium">取消</button>
+                                <button onclick="window.savePhotoEdit()" class="px-5 py-2 text-sm bg-gray-900 text-white hover:bg-gray-800 rounded-md shadow-sm font-medium">儲存</button>
                             </div>
                         </div>
                     </div>
                 </div>`;
             }
 
-            // 新增標籤 Modal
             if (state.tagModal.isOpen) {
-                let title = '新增自訂標籤';
-                let hint = '';
+                let title = '新增自訂標籤'; let hint = '';
                 if (state.tagModal.type === 'locationCity') { title = '新增 國家/縣市'; hint = '例如: 日本-京都'; }
                 else if (state.tagModal.type === 'locationDist') { title = `在「${state.tagModal.parentCity}」新增區域`; hint = '例如: 嵐山區'; }
-
                 html += `
-                <div class="fixed inset-0 z-[110] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm px-4">
-                    <div class="bg-white rounded-lg p-6 w-full max-w-sm shadow-2xl transform transition-all animate-fadeIn">
-                        <h3 class="font-bold text-gray-900 mb-2 flex items-center gap-2">
-                            <div class="bg-blue-100 text-blue-600 p-1.5 rounded-md"><i data-lucide="plus" class="w-4 h-4"></i></div>
-                            ${title}
-                        </h3>
-                        <p class="text-xs text-gray-500 mb-4">${hint}</p>
-                        <input type="text" id="newTagInput" value="${state.newTagValue}" oninput="window.updateNewTagValue(this.value)" onkeydown="if(event.key === 'Enter') window.confirmAddTag()" placeholder="輸入名稱..." class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-2" />
-                        ${state.tagModal.error ? `<p class="text-red-500 text-xs mb-4">${state.tagModal.error}</p>` : ''}
-                        <div class="flex justify-end gap-2 mt-4">
-                            <button onclick="window.closeTagModal()" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors">取消</button>
-                            <button onclick="window.confirmAddTag()" class="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors shadow-sm">確定</button>
-                        </div>
-                    </div>
-                </div>`;
+                <div class="fixed inset-0 z-[110] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm px-4"><div class="bg-white rounded-lg p-6 w-full max-w-sm shadow-2xl transform transition-all animate-fadeIn"><h3 class="font-bold text-gray-900 mb-2 flex items-center gap-2"><div class="bg-blue-100 text-blue-600 p-1.5 rounded-md"><i data-lucide="plus" class="w-4 h-4"></i></div>${title}</h3><p class="text-xs text-gray-500 mb-4">${hint}</p><input type="text" id="newTagInput" value="${state.newTagValue}" oninput="window.updateNewTagValue(this.value)" onkeydown="if(event.key === 'Enter') window.confirmAddTag()" placeholder="輸入名稱..." class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-2" />${state.tagModal.error ? `<p class="text-red-500 text-xs mb-4">${state.tagModal.error}</p>` : ''}<div class="flex justify-end gap-2 mt-4"><button onclick="window.closeTagModal()" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors">取消</button><button onclick="window.confirmAddTag()" class="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 shadow-sm">確定</button></div></div></div>`;
             }
 
-            // 確認操作 Modal
             if (state.confirmDialog.isOpen) {
-                html += `
-                <div class="fixed inset-0 z-[120] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm px-4">
-                    <div class="bg-white rounded-lg p-6 w-full max-w-sm shadow-xl transform transition-all animate-fadeIn">
-                        <h3 class="font-bold text-gray-900 mb-2">確認操作</h3>
-                        <p class="text-gray-600 text-sm mb-6">${state.confirmDialog.message}</p>
-                        <div class="flex justify-end gap-2">
-                            <button onclick="window.closeConfirmDialog()" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded transition-colors">取消</button>
-                            <button onclick="window.executeConfirmAction()" class="px-4 py-2 text-sm ${state.confirmDialog.isPrimary ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'} text-white rounded transition-colors">確定</button>
-                        </div>
-                    </div>
-                </div>`;
+                html += `<div class="fixed inset-0 z-[120] flex items-center justify-center bg-gray-900/60 backdrop-blur-sm px-4"><div class="bg-white rounded-lg p-6 w-full max-w-sm shadow-xl transform transition-all animate-fadeIn"><h3 class="font-bold text-gray-900 mb-2">確認操作</h3><p class="text-gray-600 text-sm mb-6">${state.confirmDialog.message}</p><div class="flex justify-end gap-2"><button onclick="window.closeConfirmDialog()" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded">取消</button><button onclick="window.executeConfirmAction()" class="px-4 py-2 text-sm ${state.confirmDialog.isPrimary ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'} text-white rounded">確定</button></div></div></div>`;
             }
 
             container.innerHTML = html;
             if (state.tagModal.isOpen) setTimeout(() => document.getElementById('newTagInput')?.focus(), 10);
         }
 
-        function updateUI() { renderAuthStatus(); updateFilters(); updateGallery(); updateMoodBoard(); updateModals(); }
+        function updateModals() {
+            const batchModal = document.getElementById('batch-modal-content'); const editModal = document.getElementById('edit-modal-content');
+            const batchScrollTop = batchModal ? batchModal.scrollTop : 0; const editScrollTop = editModal ? editModal.scrollTop : 0;
+            renderModals(); lucide.createIcons();
+            requestAnimationFrame(() => {
+                const newBatchModal = document.getElementById('batch-modal-content'); const newEditModal = document.getElementById('edit-modal-content');
+                if (newBatchModal && batchScrollTop > 0) newBatchModal.scrollTop = batchScrollTop;
+                if (newEditModal && editScrollTop > 0) newEditModal.scrollTop = editScrollTop;
+            });
+        }
+
+        function updateUI() { renderAuthStatus(); updateFilters(); renderGallery(); renderMoodBoard(); updateModals(); }
         function updateFilters() { renderFilters(); lucide.createIcons(); }
-        function updateGallery() { renderGallery(); lucide.createIcons(); }
         function updateMoodBoard() { renderMoodBoard(); lucide.createIcons(); }
-        function updateModals() { renderModals(); lucide.createIcons(); }
-
-        document.getElementById('searchInput').addEventListener('input', (e) => { state.searchQuery = e.target.value; updateGallery(); });
-
-        window.toggleFilter = (type, value) => {
-            const current = state.filters[type];
-            if (current.includes(value)) state.filters[type] = current.filter(item => item !== value);
-            else state.filters[type].push(value);
-            updateFilters(); updateGallery();
-        };
-
-        window.clearFilters = () => {
-            state.filters = { content: [], year: [], issue: [], locationCity: [], locationDist: [] };
-            updateFilters(); updateGallery();
-        };
-
-        window.toggleMoodBoard = (photoId) => {
-            const photo = state.photos.find(p => p.id === photoId) || state.moodBoard.find(p => p.id === photoId);
-            if (!photo) return;
-            const index = state.moodBoard.findIndex(p => p.id === photoId);
-            if (index > -1) state.moodBoard.splice(index, 1);
-            else state.moodBoard.push(photo);
-            updateGallery(); updateMoodBoard();
-        };
 
         window.openEditModal = (photoId) => {
             const photo = state.photos.find(p => p.id === photoId);
-            if (photo) { state.editModal = { isOpen: true, photo: { ...photo } }; updateModals(); }
+            if (photo) { 
+                let cText = photo.customText !== undefined ? photo.customText : '';
+                if (photo.customText === undefined && photo.title) {
+                     const tags = [photo.locationCity, photo.locationDist, photo.content, photo.year, photo.issue].filter(Boolean);
+                     const prefix = tags.join('-');
+                     if (photo.title.startsWith(prefix + '-')) cText = photo.title.replace(prefix + '-', '');
+                     else if (photo.title !== prefix) cText = photo.title; 
+                }
+                state.editModal = { isOpen: true, photo: { ...photo, customText: cText } }; updateModals(); 
+            }
         };
         window.closeEditModal = () => { state.editModal = { isOpen: false, photo: null }; updateModals(); };
-        window.updateEditModalTitle = (val) => { if (state.editModal.photo) state.editModal.photo.title = val; };
         
+        window.updateEditModalCustomText = (val) => { 
+            if (state.editModal.photo) {
+                state.editModal.photo.customText = val; 
+                updateModals(); 
+            }
+        };
         window.updateEditModalField = (field, value) => {
             if (state.editModal.photo) {
                 state.editModal.photo[field] = value;
-                // 若更改縣市，清空區域
-                if(field === 'locationCity' && state.editModal.photo.locationDist) {
-                    state.editModal.photo.locationDist = '';
-                }
-                updateModals();
+                if(field === 'locationCity' && state.editModal.photo.locationDist) state.editModal.photo.locationDist = '';
+                updateModals(); 
             }
         };
 
         window.savePhotoEdit = async () => {
             if (!state.user || !state.editModal.photo) return;
             const photo = state.editModal.photo;
-            const title = photo.title.trim() || '未命名圖片';
+            const tags = [photo.locationCity, photo.locationDist, photo.content, photo.year, photo.issue].filter(Boolean);
+            const finalTitle = [...tags, photo.customText || ''].filter(Boolean).join('-') || '未命名圖片';
             try {
                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'photos', photo.id), { 
-                    title, content: photo.content || '', year: photo.year || '', issue: photo.issue || '', 
-                    locationCity: photo.locationCity || '', locationDist: photo.locationDist || ''
+                    title: finalTitle, customText: photo.customText || '', content: photo.content || '', year: photo.year || '', issue: photo.issue || '', locationCity: photo.locationCity || '', locationDist: photo.locationDist || ''
                 }, { merge: true });
                 window.closeEditModal();
+                window.fetchGalleryPage(true); 
             } catch (err) { console.error(err); alert("儲存失敗"); }
         };
 
         window.updateNewTagValue = (val) => { state.newTagValue = val; };
-        window.openAddTagModal = (type, parentCity = '') => {
-            state.tagModal = { isOpen: true, type, parentCity, error: '' }; state.newTagValue = ''; updateModals();
-        };
+        window.openAddTagModal = (type, parentCity = '') => { state.tagModal = { isOpen: true, type, parentCity, error: '' }; state.newTagValue = ''; updateModals(); };
         window.closeTagModal = () => { state.tagModal.isOpen = false; updateModals(); };
 
         window.confirmAddTag = async () => {
-            const inputEl = document.getElementById('newTagInput');
-            const tag = inputEl ? inputEl.value.trim() : state.newTagValue.trim();
-            const { type, parentCity } = state.tagModal;
-            if (!tag) { state.tagModal.error = '不可為空'; updateModals(); return; }
+            const inputEl = document.getElementById('newTagInput'); const tag = inputEl ? inputEl.value.trim() : state.newTagValue.trim();
+            const { type, parentCity } = state.tagModal; if (!tag) { state.tagModal.error = '不可為空'; updateModals(); return; }
 
             if (type === 'locationCity') {
                 if (state.categories.locationHierarchy[tag]) { state.tagModal.error = '已存在'; updateModals(); return; }
@@ -737,32 +720,23 @@
                 if (state.categories[type].includes(tag)) { state.tagModal.error = '已存在'; updateModals(); return; }
                 state.categories[type].push(tag);
             }
-
             if (state.user) await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'tags_v2'), state.categories, { merge: true });
             state.tagModal.isOpen = false; updateModals(); updateFilters();
         };
 
-        window.handleDeleteTag = (type, tagToDelete, e) => {
-            if(e) e.stopPropagation();
+        window.handleDeleteTag = (type, tagToDelete) => {
             state.confirmDialog = {
-                isOpen: true, message: `確定要刪除「${tagToDelete}」？ (不影響已標記的照片)`, isPrimary: false,
+                isOpen: true, message: `確定刪除標籤「${tagToDelete}」？`, isPrimary: false,
                 action: async () => {
-                    if (type === 'locationCity') {
-                        delete state.categories.locationHierarchy[tagToDelete];
-                        state.filters.locationCity = state.filters.locationCity.filter(t => t !== tagToDelete);
-                    } else if (type === 'locationDist') {
+                    if (type === 'locationCity') delete state.categories.locationHierarchy[tagToDelete];
+                    else if (type === 'locationDist') {
                         const [city, dist] = tagToDelete.split('|');
                         state.categories.locationHierarchy[city] = state.categories.locationHierarchy[city].filter(t => t !== dist);
-                        state.filters.locationDist = state.filters.locationDist.filter(t => t !== tagToDelete);
-                    } else {
-                        state.categories[type] = state.categories[type].filter(t => t !== tagToDelete);
-                        state.filters[type] = state.filters[type].filter(t => t !== tagToDelete);
-                    }
+                    } else state.categories[type] = state.categories[type].filter(t => t !== tagToDelete);
                     if (state.user) await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'tags_v2'), state.categories, { merge: true });
-                    window.closeConfirmDialog(); updateFilters(); updateGallery();
+                    window.closeConfirmDialog(); updateFilters(); window.fetchGalleryPage(true);
                 }
-            };
-            updateModals();
+            }; updateModals();
         };
 
         window.handleDeletePhoto = (id) => {
@@ -772,9 +746,8 @@
                 action: async () => {
                     try {
                         await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'photos', id));
-                        state.moodBoard = state.moodBoard.filter(p => p.id !== id); updateMoodBoard(); window.closeEditModal(); 
-                    } catch (e) { console.error(e); }
-                    window.closeConfirmDialog();
+                        state.moodBoard = state.moodBoard.filter(p => p.id !== id); window.closeEditModal(); window.fetchGalleryPage(true);
+                    } catch (e) { console.error(e); } window.closeConfirmDialog();
                 }
             }; updateModals();
         };
@@ -783,45 +756,37 @@
         window.executeConfirmAction = () => { if (state.confirmDialog.action) state.confirmDialog.action(); };
 
         window.handleExport = () => {
-            if (state.moodBoard.length === 0) return;
-            // 讀取年份與期數
-            const year = document.getElementById('project-year').value;
-            let issue = document.getElementById('project-issue').value.trim();
-            if(!issue) issue = "未命名專案";
-            const safeIssue = issue.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
-            const zipName = `TravelLens_${year}_${safeIssue}.zip`;
-
+            if (!state.moodBoard.length) return;
+            const year = document.getElementById('project-year').value || '未知年份'; const issue = document.getElementById('project-issue').value || '未知期數';
+            const zipName = `TravelLens_${year}_${issue}.zip`;
             state.confirmDialog = {
                 isOpen: true, message: `將打包下載為 ${zipName} 嗎？`, isPrimary: true,
                 action: async () => {
-                    window.closeConfirmDialog();
-                    const exportBtn = document.getElementById('exportBtn'); const origText = exportBtn.innerText;
+                    window.closeConfirmDialog(); const exportBtn = document.getElementById('exportBtn'); const origText = exportBtn.innerText;
                     exportBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin inline mr-1"></i> 下載中...'; exportBtn.disabled = true;
                     try {
                         const zip = new JSZip();
                         await Promise.all(state.moodBoard.map(async (photo, index) => {
                             try {
                                 const response = await fetch(photo.url); const blob = await response.blob();
-                                const ext = blob.type.split('/')[1] || 'jpg';
-                                const safeTitle = (photo.title || '圖片').replace(/[^a-zA-Z0-9\u4e00-\u9fa5_-]/g, '');
-                                zip.file(`${index + 1}_${safeTitle}.${ext}`, blob);
-                            } catch (err) { zip.file(`Error_${index + 1}.txt`, `下載阻擋:\n${photo.url}`); }
+                                zip.file(`${index + 1}_${photo.title.replace(/[^a-zA-Z0-9\u4e00-\u9fa5_-]/g, '')}.jpg`, blob);
+                            } catch (err) { zip.file(`Error_${index + 1}.txt`, `下載失敗:\n${photo.url}`); }
                         }));
                         const zipBlob = await zip.generateAsync({ type: 'blob' });
                         const link = document.createElement('a'); link.href = URL.createObjectURL(zipBlob); link.download = zipName;
                         document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(link.href);
-                        state.moodBoard = []; updateGallery(); updateMoodBoard();
-                    } catch (error) { alert('下載發生錯誤'); } 
-                    finally { exportBtn.innerText = origText; exportBtn.disabled = false; }
+                        state.moodBoard = []; window.fetchGalleryPage(true);
+                    } catch (error) { alert('下載發生錯誤'); } finally { exportBtn.innerText = origText; exportBtn.disabled = false; }
                 }
             }; updateModals();
         };
 
         window.handleImportSamples = async () => {
-            if (!state.user) return; state.isLoading = true; updateGallery();
+            if (!state.user) return; state.isLoading = true; renderGallery();
             try {
                 const pRef = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
                 for (const s of SAMPLE_PHOTOS) await addDoc(pRef, { ...s, createdAt: Date.now() });
+                window.fetchGalleryPage(true);
             } catch (e) { console.error(e); }
         };
 
@@ -848,8 +813,7 @@
                 setTimeout(() => {
                     const rnd = (arr) => arr[Math.floor(Math.random() * arr.length)] || '';
                     state.uploadBatch = state.uploadBatch.map(item => {
-                        const cty = rnd(Object.keys(state.categories.locationHierarchy));
-                        const dst = cty ? rnd(state.categories.locationHierarchy[cty]) : '';
+                        const cty = rnd(Object.keys(state.categories.locationHierarchy)); const dst = cty ? rnd(state.categories.locationHierarchy[cty]) : '';
                         return { ...item, suggestions: {
                             customText: item.originalName.replace(/\.[^/.]+$/, "").substring(0, 10),
                             content: rnd(state.categories.content), year: rnd(state.categories.year), issue: rnd(state.categories.issue), locationCity: cty, locationDist: dst
@@ -861,14 +825,7 @@
         };
 
         window.updateBatchItemCustomText = (id, val) => { const i = state.uploadBatch.find(x=>x.id===id); if(i) i.suggestions.customText = val; };
-        window.updateBatchItem = (id, fld, val) => { 
-            const i = state.uploadBatch.find(x=>x.id===id); 
-            if(i) {
-                i.suggestions[fld] = val; 
-                if(fld === 'locationCity' && i.suggestions.locationDist) i.suggestions.locationDist = ''; // 改縣市清空區域
-            }
-            updateModals(); 
-        };
+        window.updateBatchItem = (id, fld, val) => { const i = state.uploadBatch.find(x=>x.id===id); if(i) { i.suggestions[fld] = val; if(fld === 'locationCity' && i.suggestions.locationDist) i.suggestions.locationDist = ''; } updateModals(); };
         window.removeBatchItem = (id) => { state.uploadBatch = state.uploadBatch.filter(i=>i.id!==id); if(!state.uploadBatch.length) window.closeBatchModal(); else updateModals(); };
         window.closeBatchModal = () => { state.isBatchModalOpen = false; updateModals(); setTimeout(()=>{state.batchStatus='idle';state.uploadBatch=[];}, 300); };
 
@@ -877,12 +834,12 @@
             try {
                 const pRef = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
                 for (const item of state.uploadBatch) {
-                    const s = item.suggestions;
-                    const tags = [s.locationCity, s.locationDist, s.content, s.year, s.issue].filter(Boolean);
+                    const s = item.suggestions; const tags = [s.locationCity, s.locationDist, s.content, s.year, s.issue].filter(Boolean);
                     let finalTitle = [...tags, s.customText || ''].filter(Boolean).join('-');
-                    await addDoc(pRef, { url: item.url, title: finalTitle || '未命名', content: s.content||'', year: s.year||'', issue: s.issue||'', locationCity: s.locationCity||'', locationDist: s.locationDist||'', createdAt: Date.now() });
+                    await addDoc(pRef, { url: item.url, title: finalTitle || '未命名', customText: s.customText || '', content: s.content||'', year: s.year||'', issue: s.issue||'', locationCity: s.locationCity||'', locationDist: s.locationDist||'', createdAt: Date.now() });
                 }
                 window.closeBatchModal();
+                window.fetchGalleryPage(true); 
             } catch (e) { state.batchStatus = 'review'; updateModals(); }
         };
 
