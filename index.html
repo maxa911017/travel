@@ -52,14 +52,15 @@
             </div>
             <div class="p-5 flex-1 overflow-y-auto max-h-[40vh] md:max-h-none">
                 <div class="relative mb-6">
-                    <input type="text" id="searchInput" placeholder="輸入完整照片名稱並按 Enter..." onkeydown="if(event.key === 'Enter') window.handleSearch(this.value)" class="w-full pl-9 pr-3 py-2 bg-gray-100 border-transparent rounded-md text-sm focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all" />
+                    <!-- 恢復為即時模糊搜尋體驗 -->
+                    <input type="text" id="searchInput" placeholder="搜尋任何關鍵字..." class="w-full pl-9 pr-3 py-2 bg-gray-100 border-transparent rounded-md text-sm focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all" />
                     <i data-lucide="search" class="absolute left-3 top-2.5 text-gray-400 w-4 h-4"></i>
                 </div>
                 <div id="filters-container"></div>
             </div>
         </aside>
 
-        <!-- 2. 中央照片網格 -->
+        <!-- 2. 中央照片網格 (具備前端無限捲動監聽) -->
         <main class="w-full md:flex-1 flex flex-col h-[70vh] md:h-screen overflow-hidden z-10 bg-gray-50 shrink-0">
             <header class="h-auto md:h-16 py-3 md:py-0 bg-white border-b border-gray-200 flex flex-col md:flex-row items-center justify-between px-6 shrink-0 gap-3 md:gap-0">
                 <div id="gallery-stats" class="flex items-center gap-2 text-sm text-gray-500"></div>
@@ -71,7 +72,7 @@
                     </label>
                 </div>
             </header>
-            <div id="gallery-container" onscroll="window.handleGalleryScroll(this)" class="flex-1 overflow-y-auto p-4 md:p-6"></div>
+            <div id="gallery-container" onscroll="window.handleGalleryScroll(this)" class="flex-1 overflow-y-auto p-4 md:p-6 relative"></div>
         </main>
 
         <!-- 3. 右側企劃板 -->
@@ -95,12 +96,10 @@
     <!-- Modals Container -->
     <div id="modals-container"></div>
 
-    <!-- 系統邏輯腳本 -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
         import { getAuth, signInAnonymously, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-        // 補上 getFirestore 作為不支援本地快取時的備用方案
-        import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, onSnapshot, addDoc, deleteDoc, doc, setDoc, query, where, orderBy, limit, startAfter, getDocs } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+        import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, onSnapshot, addDoc, deleteDoc, doc, setDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
         const firebaseConfig = typeof __firebase_config !== 'undefined' && __firebase_config ? JSON.parse(__firebase_config) : {
             apiKey: "AIzaSyAfB6THM5bJNd5wsBwpabMCkEak80xcMrc",
@@ -117,31 +116,24 @@
         const auth = getAuth(app);
         
         let db;
-        // 【救命機制】：使用 try-catch 包覆資料庫初始化。
-        // 當使用者在無痕模式或阻擋快取的環境下，程式就不會崩潰，而是優雅降級回標準連線模式。
         try {
             db = initializeFirestore(app, {
                 localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
             });
         } catch (error) {
-            console.warn("無法啟用本地快取 (可能處於無痕模式或瀏覽器不支援)，自動切換為標準連線：", error);
+            console.warn("無法啟用本地快取，自動切換為標準連線：", error);
             db = getFirestore(app);
         }
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'travel-lens-prod';
 
-        const SAMPLE_PHOTOS = [
-            { url: 'https://images.unsplash.com/photo-1493770348161-369560ae357d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: '法國-巴黎-餐飲與美食-2026-Vol.12-早午餐特寫', customText: '早午餐特寫', content: '餐飲與美食', year: '2026', issue: 'Vol.12', locationCity: '法國-巴黎', locationDist: '' },
-            { url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80', title: '台灣-花蓮-秀林鄉-自然與人文-2026-Vol.13-壯麗雲海', customText: '壯麗雲海', content: '自然與人文', year: '2026', issue: 'Vol.13', locationCity: '台灣-花蓮', locationDist: '秀林鄉' }
-        ];
-
         const state = {
             user: null,
             photos: [],
-            lastVisibleDoc: null,
-            hasMore: true,
-            isFetching: false,
-            pageSize: 12,
+            // 【前端分頁關鍵設定】
+            displayLimit: 15, // 每次加載的張數 (15張剛好滿版且不會卡)
+            currentDisplayedPhotos: [],
+            
             categories: {
                 content: ['景點與娛樂', '餐飲與美食', '住宿與交通', '自然與人文'], 
                 year: ['2026', '2027', '2028'],
@@ -168,6 +160,7 @@
         };
 
         let unsubTags = null;
+        let unsubPhotos = null;
 
         window.handleLogin = (e) => {
             e.preventDefault();
@@ -199,23 +192,16 @@
 
         async function initApp() {
             let localUid = localStorage.getItem('travelLensUid');
-            
             try {
-                // 【補回 Firebase 安全機制】：確保程式具備向資料庫要資料的基礎通行證
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    const userCred = await signInWithCustomToken(auth, __initial_auth_token); 
-                    localUid = userCred.user.uid;
+                    const userCred = await signInWithCustomToken(auth, __initial_auth_token); localUid = userCred.user.uid;
                 } else {
-                    const userCred = await signInAnonymously(auth); 
-                    localUid = userCred.user.uid;
+                    const userCred = await signInAnonymously(auth); localUid = userCred.user.uid;
                 }
                 localStorage.setItem('travelLensUid', localUid);
             } catch (authError) {
                 console.warn("認證異常，改用隨機連線：", authError);
-                if (!localUid) { 
-                    localUid = 'user-' + Math.random().toString(36).substr(2, 9); 
-                    localStorage.setItem('travelLensUid', localUid); 
-                }
+                if (!localUid) { localUid = 'user-' + Math.random().toString(36).substr(2, 9); localStorage.setItem('travelLensUid', localUid); }
             }
             
             state.user = { uid: localUid }; 
@@ -228,85 +214,31 @@
                     if (docSnap.exists()) { state.categories = { ...state.categories, ...docSnap.data() }; updateFilters(); updateModals(); }
                 });
                 
-                await window.fetchGalleryPage(true);
+                // 【前端全包監聽】 - 結合 LocalCache，超級省讀取額度！
+                const photosRef = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
+                unsubPhotos = onSnapshot(photosRef, (snapshot) => {
+                    const fetchedPhotos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    fetchedPhotos.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)); // 新的在前
+                    state.photos = fetchedPhotos;
+                    state.isLoading = false;
+                    renderGallery();
+                    renderMoodBoard();
+                }, (error) => {
+                    console.error("讀取照片失敗:", error);
+                    state.isLoading = false;
+                    if (error.code === 'permission-denied') {
+                        document.getElementById('gallery-container').innerHTML = `<div class="h-full flex flex-col items-center justify-center px-6 text-center animate-fadeIn"><i data-lucide="shield-alert" class="w-20 h-20 mb-4 text-red-500"></i><h2 class="font-bold text-2xl mb-2 text-gray-800">資料庫連線權限異常</h2></div>`; lucide.createIcons();
+                    } else renderGallery();
+                });
             } catch (err) { console.error("初始化失敗:", err); }
         }
 
-        window.fetchGalleryPage = async (isFirstPage = false) => {
-            if (state.isFetching || (!isFirstPage && !state.hasMore)) return;
-            state.isFetching = true;
-            
-            if (isFirstPage) {
-                state.isLoading = true;
-                state.photos = [];
-                state.lastVisibleDoc = null;
-                state.hasMore = true;
-                renderGallery();
-            }
-            
-            try {
-                const photosColl = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
-                let q = query(photosColl);
-                
-                if (state.searchQuery) {
-                    q = query(q, where('title', '==', state.searchQuery));
-                }
-                state.filters.content.forEach(val => { q = query(q, where('content', '==', val)); });
-                state.filters.year.forEach(val => { q = query(q, where('year', '==', val)); });
-                state.filters.issue.forEach(val => { q = query(q, where('issue', '==', val)); });
-                state.filters.locationCity.forEach(val => { q = query(q, where('locationCity', '==', val)); });
-                
-                if (state.filters.locationDist.length > 0) {
-                    const selectedDistName = state.filters.locationDist[0].split('|')[1];
-                    q = query(q, where('locationDist', '==', selectedDistName));
-                }
-                
-                q = query(q, orderBy('createdAt', 'desc'));
-                if (!isFirstPage && state.lastVisibleDoc) {
-                    q = query(q, startAfter(state.lastVisibleDoc));
-                }
-                q = query(q, limit(state.pageSize));
-                
-                const snapshot = await getDocs(q);
-                
-                if (snapshot.empty) {
-                    if (isFirstPage) state.photos = [];
-                    state.hasMore = false;
-                } else {
-                    const fetched = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-                    state.lastVisibleDoc = snapshot.docs[snapshot.docs.length - 1];
-                    state.photos = isFirstPage ? fetched : [...state.photos, ...fetched];
-                    if (snapshot.docs.length < state.pageSize) state.hasMore = false;
-                }
-            } catch (err) {
-                console.error("雲端分頁讀取失敗，如為多欄位篩選，請點擊主控台連結建立複合索引:", err);
-                if (isFirstPage) {
-                    document.getElementById('gallery-container').innerHTML = `
-                        <div class="p-4 text-center text-xs text-red-500 font-medium bg-red-50 rounded-lg">
-                            交叉篩選出錯。如果您同時勾選了多個欄位，請用電腦打開網頁並按下 F12 查看 Console，點選裡面的 Firebase 專屬連結建立「複合索引」即可恢復。
-                        </div>`;
-                    state.isLoading = false;
-                    state.isFetching = false;
-                    return;
-                }
-            }
-            
-            state.isLoading = false;
-            state.isFetching = false;
+        // 監聽前端文字模糊搜尋 (即時觸發)
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            state.searchQuery = e.target.value;
+            state.displayLimit = 15; // 搜尋時重置顯示數量
             renderGallery();
-            renderMoodBoard();
-        };
-
-        window.handleGalleryScroll = (el) => {
-            if (el.scrollHeight - el.scrollTop <= el.clientHeight + 100) {
-                window.fetchGalleryPage(false);
-            }
-        };
-
-        window.handleSearch = (val) => {
-            state.searchQuery = val.trim();
-            window.fetchGalleryPage(true);
-        };
+        });
 
         window.toggleFilter = (type, value) => {
             const current = state.filters[type];
@@ -315,22 +247,38 @@
                 if (type === 'locationDist') state.filters[type] = [value];
                 else state.filters[type].push(value);
             }
+            state.displayLimit = 15; // 篩選時重置顯示數量
             updateFilters();
-            window.fetchGalleryPage(true);
+            renderGallery();
         };
 
         window.clearFilters = () => {
             document.getElementById('searchInput').value = '';
             state.searchQuery = '';
             state.filters = { content: [], year: [], issue: [], locationCity: [], locationDist: [] };
+            state.displayLimit = 15; // 清除篩選時重置顯示數量
             updateFilters();
-            window.fetchGalleryPage(true);
+            renderGallery();
+        };
+
+        // 【修正核心：前端無限捲動監聽器】
+        window.handleGalleryScroll = (el) => {
+            // 如果捲動到底部的距離小於 150px，且還有尚未顯示的照片，就增加 15 張的顯示上限並重新渲染
+            if (el.scrollHeight - el.scrollTop <= el.clientHeight + 150) {
+                if (state.displayLimit < state.currentDisplayedPhotos.length) {
+                    if (state.isScrolling) return; // 加入防抖機制，避免瞬間狂載入
+                    state.isScrolling = true;
+                    state.displayLimit += 15;
+                    renderGallery(true); // 傳入 true 表示是滾動加載，避免畫面回到頂部
+                    setTimeout(() => { state.isScrolling = false; }, 50); // 短暫鎖定
+                }
+            }
         };
 
         function renderAuthStatus() {
             const el = document.getElementById('auth-status'); const btnLabel = document.getElementById('uploadBtnLabel');
             if (state.user) {
-                el.innerHTML = `<span class="flex items-center text-green-600 bg-green-50 px-2 py-1 rounded-full"><i data-lucide="cloud" class="w-3 h-3 mr-1"></i> 雲端(支援快取)連線正常</span>`;
+                el.innerHTML = `<span class="flex items-center text-green-600 bg-green-50 px-2 py-1 rounded-full"><i data-lucide="cloud" class="w-3 h-3 mr-1"></i> 雲端(快取)已連線</span>`;
                 if (btnLabel) btnLabel.classList.remove('opacity-50', 'pointer-events-none');
             } else {
                 el.innerHTML = `<span class="flex items-center text-red-500 bg-red-50 px-2 py-1 rounded-full"><i data-lucide="cloud-off" class="w-3 h-3 mr-1"></i> 連線中...</span>`;
@@ -410,27 +358,64 @@
             return html + `</div>`;
         }
 
-        function renderGallery() {
-            const container = document.getElementById('gallery-container'); const stats = document.getElementById('gallery-stats');
+        function renderGallery(isScrollLoad = false) {
+            const container = document.getElementById('gallery-container'); 
+            const stats = document.getElementById('gallery-stats');
+            
+            // 記住當前的滾動位置
+            const currentScrollTop = container.scrollTop;
+            
             if (container.innerHTML.includes('資料庫連線權限異常')) return;
 
-            stats.innerHTML = `<i data-lucide="filter" class="w-4 h-4"></i> 當前分頁顯示 ${state.photos.length} 張素材 ${state.hasMore ? '(往下滑動載入更多)' : '(已載入全部)'}`;
+            // 【前端全包模糊搜尋過濾邏輯】
+            const filteredPhotos = state.photos.filter(photo => {
+                const queryStr = state.searchQuery.toLowerCase();
+                const matchSearch = !queryStr || (photo.title && photo.title.toLowerCase().includes(queryStr)) || 
+                                    (photo.customText && photo.customText.toLowerCase().includes(queryStr)) ||
+                                    (photo.locationCity && photo.locationCity.toLowerCase().includes(queryStr)) ||
+                                    (photo.locationDist && photo.locationDist.toLowerCase().includes(queryStr));
+
+                const matchContent = state.filters.content.length === 0 || state.filters.content.includes(photo.content);
+                const matchYear = state.filters.year.length === 0 || state.filters.year.includes(photo.year);
+                const matchIssue = state.filters.issue.length === 0 || state.filters.issue.includes(photo.issue);
+                
+                let matchLocation = true;
+                if (state.filters.locationCity.length > 0 || state.filters.locationDist.length > 0) {
+                    const cityMatch = state.filters.locationCity.includes(photo.locationCity);
+                    const distMatch = state.filters.locationDist.includes(`${photo.locationCity}|${photo.locationDist}`);
+                    matchLocation = cityMatch || distMatch;
+                }
+                
+                return matchSearch && matchContent && matchYear && matchIssue && matchLocation;
+            });
+
+            // 更新到全域狀態，供無限捲動檢查使用
+            state.currentDisplayedPhotos = filteredPhotos;
+            
+            // 【前端分頁限制】：只切割出當前需要顯示的照片數量
+            const photosToDisplay = filteredPhotos.slice(0, state.displayLimit);
+
+            // 修改上方文字，讓您清楚知道現在 DOM 只有渲染幾張
+            stats.innerHTML = `<i data-lucide="filter" class="w-4 h-4"></i> 雲端總數 ${filteredPhotos.length} 張 / 畫面實際畫出 ${photosToDisplay.length} 張`;
 
             if (state.isLoading) {
-                container.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400 py-20"><i data-lucide="refresh-cw" class="animate-spin mb-4 text-blue-500 w-8 h-8"></i><p>正在自雲端分頁加載中...</p></div>`; return;
+                container.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400 py-20"><i data-lucide="refresh-cw" class="animate-spin mb-4 text-blue-500 w-8 h-8"></i><p>載入圖庫中...</p></div>`; return;
             }
             if (state.photos.length === 0) {
-                container.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400 py-10"><i data-lucide="image" class="w-16 h-16 mb-4 opacity-20"></i><p class="mb-4 text-sm">此篩選條件下沒有照片</p><button onclick="window.handleImportSamples()" class="px-6 py-2 bg-gray-900 text-white rounded-lg">導入範例照片</button></div>`; return;
+                container.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400 py-10"><i data-lucide="image" class="w-16 h-16 mb-4 opacity-20"></i><p class="mb-4 text-sm">圖庫目前是空的</p><button onclick="window.handleImportSamples()" class="px-6 py-2 bg-gray-900 text-white rounded-lg shadow-md">導入範例照片</button></div>`; return;
+            }
+            if (filteredPhotos.length === 0) {
+                 container.innerHTML = `<div class="h-full flex flex-col items-center justify-center text-gray-400 py-10"><i data-lucide="filter" class="w-12 h-12 mb-4 opacity-20"></i><p>沒有符合條件的照片</p></div>`; return;
             }
 
             let html = `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">`;
-            state.photos.forEach(photo => {
+            photosToDisplay.forEach(photo => {
                 const isSelected = state.moodBoard.some(p => p.id === photo.id);
                 const locDisplay = [photo.locationCity, photo.locationDist].filter(Boolean).join(', ');
                 html += `
                     <div class="group bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col animate-fadeIn">
                         <div class="relative aspect-video bg-gray-200 overflow-hidden shrink-0">
-                            <img src="${photo.url}" alt="${photo.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                            <img src="${photo.url}" alt="${photo.title}" loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                             <button onclick="window.toggleMoodBoard('${photo.id}')" class="absolute top-2 right-2 p-2 md:p-1.5 rounded-full shadow-sm backdrop-blur-sm z-10 ${isSelected ? 'bg-blue-600 text-white' : 'bg-white/80 text-gray-700 hover:bg-white'}">
                                 <i data-lucide="${isSelected ? 'check' : 'plus'}" class="w-4 h-4"></i>
                             </button>
@@ -452,14 +437,34 @@
                         </div>
                     </div>`;
             });
-            html += `</div>`;
             
-            if (state.isFetching && state.photos.length > 0) {
-                html += `<div class="text-center py-4 text-xs text-gray-400 flex items-center justify-center gap-2"><i data-lucide="refresh-cw" class="w-4 h-4 animate-spin"></i> 正在翻頁讀取中...</div>`;
+            html += `</div>`; // 先把 grid 網格關閉，避免按鈕跟照片重疊破版
+            
+            // 底部無限捲動的優雅提示 (移出 grid 網格外，徹底解決破版)
+            if (state.displayLimit < filteredPhotos.length) {
+                html += `<div class="w-full py-8 flex justify-center shrink-0"><div class="bg-white px-5 py-2.5 rounded-full shadow-sm border border-gray-200 text-xs text-blue-600 font-medium flex items-center gap-2"><i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> 往下滑動載入更多... (${photosToDisplay.length}/${filteredPhotos.length})</div></div>`;
+            } else if (filteredPhotos.length > 15) {
+                html += `<div class="w-full py-6 text-center text-xs text-gray-400 shrink-0">已顯示全部 ${filteredPhotos.length} 張照片</div>`;
             }
+            
             container.innerHTML = html;
             lucide.createIcons();
+            
+            // 如果是透過滾動觸發渲染，則維持原來的捲動高度不變
+            if (isScrollLoad) {
+                container.scrollTop = currentScrollTop;
+            }
         }
+
+        window.toggleMoodBoard = (photoId) => {
+            const photo = state.photos.find(p => p.id === photoId) || state.moodBoard.find(p => p.id === photoId);
+            if (!photo) return;
+            const index = state.moodBoard.findIndex(p => p.id === photoId);
+            if (index > -1) state.moodBoard.splice(index, 1);
+            else state.moodBoard.push(photo);
+            renderGallery(true); 
+            renderMoodBoard();
+        };
 
         function renderMoodBoard() {
             const container = document.getElementById('moodboard-items'); const countEl = document.getElementById('moodboard-count');
@@ -656,7 +661,6 @@
 
         function updateUI() { renderAuthStatus(); updateFilters(); renderGallery(); renderMoodBoard(); updateModals(); }
         function updateFilters() { renderFilters(); lucide.createIcons(); }
-        function updateMoodBoard() { renderMoodBoard(); lucide.createIcons(); }
 
         window.openEditModal = (photoId) => {
             const photo = state.photos.find(p => p.id === photoId);
@@ -697,8 +701,12 @@
                     title: finalTitle, customText: photo.customText || '', content: photo.content || '', year: photo.year || '', issue: photo.issue || '', locationCity: photo.locationCity || '', locationDist: photo.locationDist || ''
                 }, { merge: true });
                 window.closeEditModal();
-                window.fetchGalleryPage(true); 
-            } catch (err) { console.error(err); alert("儲存失敗"); }
+                // 不用 fetch，onSnapshot 會自動更新前端
+            } catch (err) { 
+                console.error(err); 
+                state.confirmDialog = { isOpen: true, message: "儲存失敗，請檢查連線狀態。", action: null }; 
+                updateModals(); 
+            }
         };
 
         window.updateNewTagValue = (val) => { state.newTagValue = val; };
@@ -734,7 +742,7 @@
                         state.categories.locationHierarchy[city] = state.categories.locationHierarchy[city].filter(t => t !== dist);
                     } else state.categories[type] = state.categories[type].filter(t => t !== tagToDelete);
                     if (state.user) await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'tags_v2'), state.categories, { merge: true });
-                    window.closeConfirmDialog(); updateFilters(); window.fetchGalleryPage(true);
+                    window.closeConfirmDialog(); updateFilters(); renderGallery();
                 }
             }; updateModals();
         };
@@ -746,7 +754,7 @@
                 action: async () => {
                     try {
                         await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'photos', id));
-                        state.moodBoard = state.moodBoard.filter(p => p.id !== id); window.closeEditModal(); window.fetchGalleryPage(true);
+                        state.moodBoard = state.moodBoard.filter(p => p.id !== id); window.closeEditModal(); renderGallery(); renderMoodBoard();
                     } catch (e) { console.error(e); } window.closeConfirmDialog();
                 }
             }; updateModals();
@@ -775,8 +783,8 @@
                         const zipBlob = await zip.generateAsync({ type: 'blob' });
                         const link = document.createElement('a'); link.href = URL.createObjectURL(zipBlob); link.download = zipName;
                         document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(link.href);
-                        state.moodBoard = []; window.fetchGalleryPage(true);
-                    } catch (error) { alert('下載發生錯誤'); } finally { exportBtn.innerText = origText; exportBtn.disabled = false; }
+                        state.moodBoard = []; renderGallery(); renderMoodBoard();
+                    } catch (error) { state.confirmDialog = { isOpen: true, message: "下載發生錯誤", action: null }; updateModals(); } finally { exportBtn.innerText = origText; exportBtn.disabled = false; }
                 }
             }; updateModals();
         };
@@ -786,7 +794,6 @@
             try {
                 const pRef = collection(db, 'artifacts', appId, 'public', 'data', 'photos');
                 for (const s of SAMPLE_PHOTOS) await addDoc(pRef, { ...s, createdAt: Date.now() });
-                window.fetchGalleryPage(true);
             } catch (e) { console.error(e); }
         };
 
@@ -802,26 +809,107 @@
             }; r.onerror = rej;
         });
 
+        // ==========================================
+        // 新增：串接 ChatGPT 視覺辨識 API
+        // ==========================================
+        const analyzeImageWithChatGPT = async (base64Image) => {
+            // ⚠️ 警告：這僅供本地測試，切勿將包含 API Key 的程式碼發布到公開網路！
+            const apiKey = "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";
+            
+            // 將我們系統目前設定的標籤打包，告訴 AI 只能從這裡面選
+            const validContents = state.categories.content.join(", ");
+            const validYears = state.categories.year.join(", ");
+            const validIssues = state.categories.issue.join(", ");
+            const validCities = Object.keys(state.categories.locationHierarchy).join(", ");
+            
+            const promptText = `你是一個專業的旅遊雜誌編輯。請分析這張旅遊照片，並以 JSON 格式回傳最適合的分類。
+            必須嚴格遵守以下欄位與可用選項，若無法判斷請填空字串 ""：
+            1. customText: 圖片的簡短描述，繁體中文，最多10個字。
+            2. content: 必須從 [${validContents}] 中選擇一個。
+            3. year: 評估照片風格年份，從 [${validYears}] 選擇一個。
+            4. issue: 雜誌期數，從 [${validIssues}] 選擇一個。
+            5. locationCity: 判斷國家與城市，從 [${validCities}] 中選擇一個。
+            6. locationDist: 判斷鄉鎮市區，如果不確定請填空字串。
+            `;
+
+            try {
+                const response = await fetch("https://api.openai.com/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: "gpt-4o-mini", // 使用最新最快的迷你視覺模型
+                        response_format: { type: "json_object" }, // 強制回傳 JSON
+                        messages: [
+                            { role: "system", content: "你是一個嚴格輸出 JSON 格式的圖片解析機器人。" },
+                            {
+                                role: "user",
+                                content: [
+                                    { type: "text", text: promptText },
+                                    { type: "image_url", image_url: { url: base64Image } }
+                                ]
+                            }
+                        ]
+                    })
+                });
+                
+                const data = await response.json();
+                if(data.error) throw new Error(data.error.message);
+                return JSON.parse(data.choices[0].message.content); // 解析出 AI 給的標籤
+            } catch(error) {
+                console.error("ChatGPT 分析失敗:", error);
+                return null;
+            }
+        };
+
+        // 改寫批量上傳邏輯，導入 AI 辨識
         window.handleBatchUpload = async (e) => {
             const files = Array.from(e.target.files); if (files.length === 0) return;
             state.isBatchModalOpen = true; state.batchStatus = 'analyzing'; updateModals();
             try {
+                // 第一階段：先將圖片壓縮並顯示在畫面上，提示「AI 分析中...」
                 state.uploadBatch = await Promise.all(files.map(async (file, i) => ({
                     id: `batch-${Date.now()}-${i}`, url: await compressImage(file), originalName: file.name,
-                    suggestions: { customText: '分析中...', content: '', year: '', issue: '', locationCity: '', locationDist: '' }
-                }))); updateModals();
-                setTimeout(() => {
-                    const rnd = (arr) => arr[Math.floor(Math.random() * arr.length)] || '';
-                    state.uploadBatch = state.uploadBatch.map(item => {
-                        const cty = rnd(Object.keys(state.categories.locationHierarchy)); const dst = cty ? rnd(state.categories.locationHierarchy[cty]) : '';
-                        return { ...item, suggestions: {
-                            customText: item.originalName.replace(/\.[^/.]+$/, "").substring(0, 10),
-                            content: rnd(state.categories.content), year: rnd(state.categories.year), issue: rnd(state.categories.issue), locationCity: cty, locationDist: dst
-                        }};
-                    });
-                    state.batchStatus = 'review'; updateModals();
-                }, 2000);
-            } catch (err) { state.batchStatus = 'idle'; state.isBatchModalOpen = false; updateModals(); } e.target.value = null;
+                    suggestions: { customText: 'AI 視覺分析中...', content: '', year: '', issue: '', locationCity: '', locationDist: '' }
+                }))); 
+                updateModals();
+
+                // 第二階段：逐一張照片呼叫 ChatGPT，自動打標籤！
+                for (let i = 0; i < state.uploadBatch.length; i++) {
+                    const item = state.uploadBatch[i];
+                    const aiResult = await analyzeImageWithChatGPT(item.url);
+                    
+                    if (aiResult) {
+                        // 為了防止 AI 亂講話，我們多加一層檢查，確保它選的標籤存在於我們的系統中
+                        item.suggestions.customText = aiResult.customText || item.originalName.replace(/\.[^/.]+$/, "").substring(0, 10);
+                        item.suggestions.content = state.categories.content.includes(aiResult.content) ? aiResult.content : '';
+                        item.suggestions.year = state.categories.year.includes(aiResult.year) ? aiResult.year : '';
+                        item.suggestions.issue = state.categories.issue.includes(aiResult.issue) ? aiResult.issue : '';
+                        item.suggestions.locationCity = Object.keys(state.categories.locationHierarchy).includes(aiResult.locationCity) ? aiResult.locationCity : '';
+                        
+                        if (item.suggestions.locationCity && aiResult.locationDist) {
+                            const validDists = state.categories.locationHierarchy[item.suggestions.locationCity] || [];
+                            item.suggestions.locationDist = validDists.includes(aiResult.locationDist) ? aiResult.locationDist : '';
+                        }
+                    } else {
+                        item.suggestions.customText = '分析失敗，請手動命名';
+                    }
+                    
+                    // 每分析完一張，就更新一次畫面，讓使用者看到即時進度！
+                    updateModals();
+                }
+                
+                // 全部處理完成，進入人工校對狀態
+                state.batchStatus = 'review'; 
+                updateModals();
+                
+            } catch (err) { 
+                console.error(err); 
+                state.batchStatus = 'idle'; state.isBatchModalOpen = false; updateModals(); 
+            } 
+            e.target.value = null;
         };
 
         window.updateBatchItemCustomText = (id, val) => { const i = state.uploadBatch.find(x=>x.id===id); if(i) i.suggestions.customText = val; };
@@ -839,7 +927,6 @@
                     await addDoc(pRef, { url: item.url, title: finalTitle || '未命名', customText: s.customText || '', content: s.content||'', year: s.year||'', issue: s.issue||'', locationCity: s.locationCity||'', locationDist: s.locationDist||'', createdAt: Date.now() });
                 }
                 window.closeBatchModal();
-                window.fetchGalleryPage(true); 
             } catch (e) { state.batchStatus = 'review'; updateModals(); }
         };
 
