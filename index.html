@@ -923,19 +923,24 @@
             const availableModels = listData.models || [];
             
             // 自動挑選：找尋支援 generateContent 且名稱包含 flash 的模型
-            const validModel = availableModels.find(m => 
+            // 🔴 新增防護機制：排除被 Google 封鎖的 2.5 版，並確保抓到最新版
+            let flashModels = availableModels.filter(m => 
                 m.supportedGenerationMethods && 
                 m.supportedGenerationMethods.includes("generateContent") && 
-                m.name.includes("flash")
+                m.name.includes("flash") &&
+                !m.name.includes("2.5") // 👈 排除有問題的 2.5 版陷阱
             );
 
-            if (!validModel) {
+            if (flashModels.length === 0) {
                 throw new Error("在您的 API Key 權限下，找不到任何支援視覺的 Gemini Flash 模型。");
             }
 
-            // 取出正確的模型名稱 (例如把 'models/gemini-1.5-flash-001' 切割成 'gemini-1.5-flash-001')
-            const modelName = validModel.name.replace("models/", "");
-            console.log("✅ 系統已自動偵測並採用模型:", modelName);
+            // 排序模型名稱 (反向排序字母，讓 3.5 優先於 1.5)
+            flashModels.sort((a, b) => b.name.localeCompare(a.name));
+            
+            // 取出正確的模型名稱 (例如把 'models/gemini-3.5-flash' 切割成 'gemini-3.5-flash')
+            const modelName = flashModels[0].name.replace("models/", "");
+            console.log("✅ 系統已自動偵測並採用最新模型:", modelName);
 
             // === 3. 使用抓到的正確模型，正式發送辨識請求 ===
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
