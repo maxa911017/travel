@@ -888,7 +888,7 @@
             }; r.onerror = rej;
         });
 
-        // === 呼叫 Gemini 進行視覺判斷 (自動偵測可用模型版) ===
+        // === 呼叫 Gemini 進行視覺判斷 (強制鎖定免費穩定版) ===
         async function analyzeImageWithGemini(base64Image, categories, apiKey) {
             // 1. 處理 Base64 字串，移除前綴
             const base64Data = base64Image.split(',')[1];
@@ -912,37 +912,8 @@
   "locationDist": "判斷最可能的【鄉鎮市區】，無法判斷填空字串"
 }`;
 
-            // === 2. 動態問 Google：這把 Key 可以用哪些模型？ ===
-            const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
-            const listResponse = await fetch(listUrl);
-            if (!listResponse.ok) {
-                throw new Error("無法取得模型清單，請確認您的 API Key 是否正確。");
-            }
-            
-            const listData = await listResponse.json();
-            const availableModels = listData.models || [];
-            
-            // 自動挑選：找尋支援 generateContent 且名稱包含 flash 的模型
-            // 🔴 新增防護機制：排除被 Google 封鎖的 2.5 版，並確保抓到最新版
-            let flashModels = availableModels.filter(m => 
-                m.supportedGenerationMethods && 
-                m.supportedGenerationMethods.includes("generateContent") && 
-                m.name.includes("flash") &&
-                !m.name.includes("2.5") // 👈 排除有問題的 2.5 版陷阱
-            );
-
-            if (flashModels.length === 0) {
-                throw new Error("在您的 API Key 權限下，找不到任何支援視覺的 Gemini Flash 模型。");
-            }
-
-            // 排序模型名稱 (反向排序字母，讓 3.5 優先於 1.5)
-            flashModels.sort((a, b) => b.name.localeCompare(a.name));
-            
-            // 取出正確的模型名稱 (例如把 'models/gemini-3.5-flash' 切割成 'gemini-3.5-flash')
-            const modelName = flashModels[0].name.replace("models/", "");
-            console.log("✅ 系統已自動偵測並採用最新模型:", modelName);
-
-            // === 3. 使用抓到的正確模型，正式發送辨識請求 ===
+            // 🛑 停止自動偵測！強制指定官方確定有免費額度 (Free Tier) 的 1.5 Flash 模型
+            const modelName = "gemini-1.5-flash";
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
             const response = await fetch(url, {
