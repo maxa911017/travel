@@ -705,12 +705,14 @@
             const current = state.filters[type];
             if (current.includes(value)) state.filters[type] = current.filter(item => item !== value);
             else state.filters[type].push(value);
-            updateFilters(); updateGallery();
+            updateFilters(); 
+            window.loadPhotos(true); // 篩選條件改變，重新向資料庫請求第一頁
         };
 
         window.clearFilters = () => {
             state.filters = { content: [], year: [], issue: [], locationCity: [], locationDist: [] };
-            updateFilters(); updateGallery();
+            updateFilters(); 
+            window.loadPhotos(true); // 重新向資料庫請求
         };
 
         window.toggleMoodBoard = (photoId) => {
@@ -765,6 +767,7 @@
                     locationDist: photo.locationDist || ''
                 }, { merge: true });
                 window.closeEditModal();
+                window.loadPhotos(true); // 修改完成後重整資料
             } catch (err) { console.error(err); alert("儲存失敗"); }
         };
 
@@ -826,7 +829,10 @@
                 action: async () => {
                     try {
                         await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'photos', id));
-                        state.moodBoard = state.moodBoard.filter(p => p.id !== id); updateMoodBoard(); window.closeEditModal(); 
+                        // 手動從前端畫面移除，以節省再次讀取全部資料的次數
+                        state.photos = state.photos.filter(p => p.id !== id);
+                        state.moodBoard = state.moodBoard.filter(p => p.id !== id); 
+                        updateGallery(); updateMoodBoard(); window.closeEditModal(); 
                     } catch (e) { console.error(e); }
                     window.closeConfirmDialog();
                 }
@@ -1057,6 +1063,7 @@
                     });
                 }
                 window.closeBatchModal();
+                window.loadPhotos(true); // 儲存完畢，重抓最新照片
             } catch (e) { state.batchStatus = 'review'; updateModals(); }
         };
 
