@@ -888,9 +888,9 @@
             }; r.onerror = rej;
         });
 
-        // === 呼叫 Gemini 進行視覺判斷 (強制鎖定免費穩定版) ===
+        // === 呼叫 Gemini 進行視覺判斷 (鎖定 2026 年最新穩定版 Gemini 3.6 Flash) ===
         async function analyzeImageWithGemini(base64Image, categories, apiKey) {
-            // 1. 處理 Base64 字串，移除前綴
+            // 1. 處理 Base64 字串，移除瀏覽器產生的前綴
             const base64Data = base64Image.split(',')[1];
 
             const prompt = `
@@ -912,8 +912,8 @@
   "locationDist": "判斷最可能的【鄉鎮市區】，無法判斷填空字串"
 }`;
 
-            // 🛑 停止自動偵測！強制指定官方確定有免費額度 (Free Tier) 的 1.5 Flash 模型
-            const modelName = "gemini-1.5-flash";
+            // 🔥 關鍵修正：指定 Google AI 於 2026 年 7 月最新發布的 gemini-3.6-flash
+            const modelName = "gemini-3.6-flash";
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
             const response = await fetch(url, {
@@ -927,23 +927,26 @@
                         ]
                     }],
                     generationConfig: {
-                        responseMimeType: "application/json" // 強制回傳乾淨的 JSON
+                        responseMimeType: "application/json" 
                     }
                 })
             });
 
             if (!response.ok) {
                 const errData = await response.json().catch(() => ({}));
-                throw new Error(errData.error?.message || `Gemini API 請求失敗 (狀態碼: ${response.status})`);
+                throw new Error(errData.error?.message || `API 請求失敗 (狀態碼: ${response.status})`);
             }
 
             const data = await response.json();
-            const textResult = data.candidates[0].content.parts[0].text;
+            let textResult = data.candidates[0].content.parts[0].text;
             
+            // 安全過濾：確保清除可能殘留的 Markdown 語法
+            textResult = textResult.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+
             try {
                 return JSON.parse(textResult);
             } catch (e) {
-                throw new Error("Gemini 回傳的格式解析失敗");
+                throw new Error("格式解析失敗，請重新嘗試");
             }
         }
 
