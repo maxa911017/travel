@@ -914,8 +914,8 @@
   "locationDist": "判斷照片最可能的【鄉鎮市區】(若無法判斷請填空字串)"
 }`;
 
-            // 1. 自動偵測該 API Key 可用的模型 (解決 404 Not Found 問題)
-            let targetModel = 'gemini-1.5-flash'; // 預設底線值
+            // 1. 自動偵測該 API Key 可用的模型，並優先使用 2026 年最新模型
+            let targetModel = 'gemini-3.5-flash'; // 預設使用最新 3.5 版
             try {
                 // 向 Google API 索取該 Key 的可用模型清單
                 const modelListRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
@@ -923,22 +923,24 @@
                     const modelData = await modelListRes.json();
                     const availableModels = modelData.models.map(m => m.name.replace('models/', ''));
                     
-                    // 尋找最適用的模型 (優先順序)
-                    if (availableModels.includes('gemini-1.5-flash')) {
-                        targetModel = 'gemini-1.5-flash';
-                    } else if (availableModels.includes('gemini-1.5-pro')) {
-                        targetModel = 'gemini-1.5-pro';
-                    } else if (availableModels.includes('gemini-1.5-flash-8b')) {
-                        targetModel = 'gemini-1.5-flash-8b';
+                    // 尋找最適用的模型 (因應 Google 停用舊版，優先尋找 3.5 或 3.0)
+                    if (availableModels.includes('gemini-3.5-flash')) {
+                        targetModel = 'gemini-3.5-flash';
+                    } else if (availableModels.includes('gemini-3-flash')) {
+                        targetModel = 'gemini-3-flash';
+                    } else if (availableModels.includes('gemini-3.5-pro')) {
+                        targetModel = 'gemini-3.5-pro';
+                    } else if (availableModels.includes('gemini-2.5-flash-lite')) {
+                        targetModel = 'gemini-2.5-flash-lite';
                     } else {
-                        // 如果都沒有，找任何包含 flash 或 pro 的模型
-                        const fallback = availableModels.find(m => m.includes('flash') || m.includes('pro'));
+                        // 如果都沒有，找任何包含 flash 的模型作為最後防線
+                        const fallback = availableModels.find(m => m.includes('flash') && !m.includes('2.5-flash')); 
                         if (fallback) targetModel = fallback;
                     }
                     console.log("✅ 系統為您自動選擇的模型是:", targetModel);
                 }
             } catch (e) {
-                console.warn("自動獲取模型列表失敗，將使用預設模型", e);
+                console.warn("自動獲取模型列表失敗，將使用預設模型 gemini-3.5-flash", e);
             }
 
             // 2. 呼叫目標模型
@@ -966,7 +968,7 @@
             const data = await response.json();
             let textResponse = data.candidates[0].content.parts[0].text;
             
-            // 清理 Markdown
+            // 清理 Markdown (解決防呆問題)
             textResponse = textResponse.replace(/^```json/mi, '').replace(/```$/mi, '').trim();
             
             return JSON.parse(textResponse);
