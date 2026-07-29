@@ -907,7 +907,7 @@
 - 雜誌期數: ${JSON.stringify(categories.issue)}
 - 國家與縣市: ${JSON.stringify(Object.keys(categories.locationHierarchy))}
 
-【請嚴格以 JSON 格式輸出】，不要有 markdown 標記，只需回傳純 JSON 字串，欄位如下：
+【請嚴格以純 JSON 格式輸出】，不要加 \`\`\`json 標籤，只需回傳純 JSON 字串，欄位如下：
 {
   "customText": "根據照片內容給予5到10字以內的繁體中文精準描述 (例如: 抹茶拿鐵特寫, 壯麗高山雲海)",
   "content": "必須是上述【內容體驗】陣列中的其中一個，無匹配則填空字串",
@@ -928,7 +928,7 @@
                         ]
                     }],
                     generationConfig: {
-                        response_mime_type: "application/json" // 強制回傳 JSON 格式
+                        response_mime_type: "application/json" 
                     }
                 })
             });
@@ -939,7 +939,11 @@
             }
 
             const data = await response.json();
-            const textResponse = data.candidates[0].content.parts[0].text;
+            let textResponse = data.candidates[0].content.parts[0].text;
+            
+            // 【修正點】：清理 Gemini 可能多加的 Markdown 標記，避免 JSON.parse 崩潰
+            textResponse = textResponse.replace(/^```json/mi, '').replace(/```$/mi, '').trim();
+            
             return JSON.parse(textResponse);
         }
 
@@ -993,6 +997,10 @@
                         };
                     } catch (err) {
                         console.error(`圖片 [${item.originalName}] AI 解析失敗:`, err);
+                        
+                        // 【修正點】：如果失敗，跳出警告告訴我們原因，而不是默默退回空狀態
+                        alert(`照片 "${item.originalName}" 解析失敗！\n錯誤原因：${err.message}\n\n若是 API 錯誤，請關閉網頁重試輸入正確的 API Key。`);
+                        
                         // 如果因為網路或金鑰錯誤失敗，退回原本的照片檔名，讓使用者手動選
                         return {
                             ...item,
