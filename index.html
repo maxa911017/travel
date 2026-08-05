@@ -26,21 +26,22 @@
     <div id="login-screen" class="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 backdrop-blur-md transition-opacity duration-300 px-4">
         <div class="bg-white rounded-2xl p-6 md:p-8 w-full max-w-sm shadow-2xl transform transition-all animate-fadeIn text-center">
             <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
-                <i data-lucide="lock" class="w-8 h-8"></i>
-            </div>
-            <h2 class="text-2xl font-bold text-gray-900 mb-2">TravelLens</h2>
-            <p class="text-sm text-gray-500 mb-6">請輸入高強度密碼進入系統 (預設: Travel@2026!)</p>
-            <form onsubmit="window.handleLogin(event)">
-                <input type="password" id="password-input" placeholder="需含大小寫、數字與符號..." class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-3 transition-all text-center tracking-widest" autofocus />
-                <p id="login-error" class="text-red-500 text-xs mb-4 hidden">密碼錯誤，請再試一次</p>
-                <button type="submit" class="w-full bg-blue-600 text-white rounded-lg px-4 py-3 font-medium hover:bg-blue-700 transition-colors shadow-md">
-                    進入系統
-                </button>
-            </form>
+            <i data-lucide="lock" class="w-8 h-8"></i>
         </div>
+        <h2 class="text-2xl font-bold text-gray-900 mb-2">TravelLens</h2>
+        <p class="text-sm text-gray-500 mb-6">請輸入您的專屬帳號與密碼</p>
+        <form onsubmit="window.handleLogin(event)">
+            <input type="email" id="email-input" placeholder="登入信箱 (Email)" class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-3 transition-all text-center tracking-widest" required autofocus />
+            <input type="password" id="password-input" placeholder="密碼 (Password)" class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none mb-3 transition-all text-center tracking-widest" required />
+            <p id="login-error" class="text-red-500 text-xs mb-4 hidden">帳號或密碼錯誤，請再試一次</p>
+            <button type="submit" id="login-btn" class="w-full bg-blue-600 text-white rounded-lg px-4 py-3 font-medium hover:bg-blue-700 transition-colors shadow-md flex justify-center items-center gap-2">
+                進入系統
+            </button>
+        </form>
     </div>
+</div>
 
-    <!-- 系統主體 -->
+<!-- 系統主體 -->
     <div class="flex flex-col md:flex-row min-h-screen relative hidden" id="app">
         <!-- 1. 左側過濾面板 -->
         <aside class="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-gray-200 flex flex-col h-auto md:h-screen shrink-0 z-10">
@@ -98,7 +99,7 @@
     <!-- 系統邏輯腳本 -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
-        import { getAuth, signInAnonymously, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        import { getAuth, signInAnonymously, signInWithCustomToken, signInWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
         import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, onSnapshot, addDoc, deleteDoc, doc, setDoc, getDocs, query, orderBy } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
         const firebaseConfig = typeof __firebase_config !== 'undefined' && __firebase_config ? JSON.parse(__firebase_config) : {
@@ -157,57 +158,66 @@
         let unsubTags = null;
         let loadMoreObserver = null;
 
-        window.handleLogin = (e) => {
+        // === 全新的帳號密碼登入邏輯 ===
+        window.handleLogin = async (e) => {
             e.preventDefault();
-            const now = Date.now();
-            const lockoutUntil = parseInt(localStorage.getItem('travelLensLockout') || '0', 10);
-            if (now < lockoutUntil) {
-                const remaining = Math.ceil((lockoutUntil - now) / 1000);
-                showLoginError(`嘗試次數過多，請等待 ${remaining} 秒後再試。`); return;
-            }
+            const email = document.getElementById('email-input').value;
             const pwd = document.getElementById('password-input').value;
-            if (pwd === 'Travel@2026!') {
-                localStorage.removeItem('travelLensAttempts'); localStorage.removeItem('travelLensLockout');
-                document.getElementById('login-screen').classList.add('hidden'); document.getElementById('app').classList.remove('hidden');
-                initApp(); updateUI();
-            } else {
-                let attempts = parseInt(localStorage.getItem('travelLensAttempts') || '0', 10) + 1;
-                localStorage.setItem('travelLensAttempts', attempts);
-                if (attempts >= 5) {
-                    localStorage.setItem('travelLensLockout', now + 3 * 60 * 1000);
-                    showLoginError(`密碼錯誤達 5 次，系統鎖定 3 分鐘。`);
-                } else showLoginError(`密碼錯誤，剩餘 ${5 - attempts} 次機會。`);
+            const btn = document.getElementById('login-btn');
+            const errorEl = document.getElementById('login-error');
+            
+            // 按下後按鈕呈現載入狀態
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> 驗證中...';
+            errorEl.classList.add('hidden');
+            lucide.createIcons();
+
+            try {
+                // 呼叫 Firebase 進行帳號密碼驗證
+                const userCred = await signInWithEmailAndPassword(auth, email, pwd);
+                localStorage.setItem('travelLensUid', userCred.user.uid);
+                
+                // 登入成功，隱藏登入畫面並啟動系統
+                document.getElementById('login-screen').classList.add('hidden'); 
+                document.getElementById('app').classList.remove('hidden');
+                initApp(); 
+                
+            } catch (authError) {
+                console.error("登入失敗", authError);
+                errorEl.innerText = '帳號或密碼錯誤，請檢查後再試一次';
+                errorEl.classList.remove('hidden');
+                document.getElementById('password-input').value = '';
+                document.getElementById('password-input').focus();
+                
+                // 恢復按鈕狀態
+                btn.disabled = false;
+                btn.innerHTML = '進入系統';
             }
         };
 
-        function showLoginError(msg) {
-            const errEl = document.getElementById('login-error'); errEl.innerText = msg; errEl.classList.remove('hidden');
-            document.getElementById('password-input').value = ''; document.getElementById('password-input').focus();
-        }
-
+        // === 系統初始化 (不再匿名登入，直接讀取資料庫) ===
         async function initApp() {
-            let localUid = localStorage.getItem('travelLensUid');
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    const userCred = await signInWithCustomToken(auth, __initial_auth_token); localUid = userCred.user.uid;
-                } else {
-                    const userCred = await signInAnonymously(auth); localUid = userCred.user.uid;
-                }
-                localStorage.setItem('travelLensUid', localUid);
-            } catch (authError) {
-                if (!localUid) { localUid = 'user-' + Math.random().toString(36).substr(2, 9); localStorage.setItem('travelLensUid', localUid); }
-            }
-            state.user = { uid: localUid }; updateUI();
+            // 讀取目前登入的使用者資訊
+            state.user = { uid: auth.currentUser?.uid || localStorage.getItem('travelLensUid') }; 
+            updateUI();
             
             try {
+                // 1. 監聽標籤設定
                 const tagsRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'tags_v2');
                 unsubTags = onSnapshot(tagsRef, (docSnap) => {
-                    if (docSnap.exists()) { state.categories = { ...state.categories, ...docSnap.data() }; updateFilters(); updateModals(); }
+                    if (docSnap.exists()) { 
+                        state.categories = { ...state.categories, ...docSnap.data() }; 
+                        updateFilters(); 
+                        updateModals(); 
+                    }
                 });
                 
-                // 初次登入，全庫拉取文字屬性
+                // 2. 初始載入照片庫 (全庫拉取文字屬性)
                 window.loadPhotos();
-            } catch (err) { console.error("Firestore Init Error:", err); }
+                
+            } catch (err) { 
+                console.error("Firestore Init Error:", err); 
+            }
         }
 
         // 讀取資料：全庫拉取，利用 Firebase 快取，不會耗費多餘讀取額度
@@ -979,35 +989,53 @@
             updateModals();
 
             try {
+                // 1. 先將所有圖片壓縮轉換為 Base64 並建立初始列表
                 state.uploadBatch = await Promise.all(files.map(async (file, i) => ({
                     id: `batch-${Date.now()}-${i}`, url: await compressImage(file), originalName: file.name,
                     suggestions: { customText: 'Gemini 解析中...', content: '', year: '', issue: '', locationCity: '', locationDist: '' }
                 }))); 
                 updateModals();
 
-                state.uploadBatch = await Promise.all(state.uploadBatch.map(async (item) => {
+                // 2. ★排隊循序處理，並加入友善的錯誤攔截★
+                for (let i = 0; i < state.uploadBatch.length; i++) {
+                    let item = state.uploadBatch[i];
                     try {
                         const aiResult = await analyzeImageWithGemini(item.url, state.categories, apiKey);
-                        return {
-                            ...item,
-                            suggestions: {
-                                customText: aiResult.customText || item.originalName.replace(/\.[^/.]+$/, "").substring(0, 10),
-                                content: aiResult.content || '', year: aiResult.year || '', issue: aiResult.issue || '',
-                                locationCity: aiResult.locationCity || '', locationDist: aiResult.locationDist || ''
-                            }
+                        
+                        // 更新單筆照片的解析結果
+                        item.suggestions = {
+                            customText: aiResult.customText || item.originalName.replace(/\.[^/.]+$/, "").substring(0, 10),
+                            content: aiResult.content || '', year: aiResult.year || '', issue: aiResult.issue || '',
+                            locationCity: aiResult.locationCity || '', locationDist: aiResult.locationDist || ''
                         };
                     } catch (err) {
-                        console.error(`圖片解析失敗:`, err);
-                        alert(`照片 "${item.originalName}" 解析失敗！\n原因：${err.message}\n若是 API 錯誤，請關閉網頁重試輸入正確的 API Key。`);
-                        return {
-                            ...item,
-                            suggestions: {
-                                customText: item.originalName.replace(/\.[^/.]+$/, "").substring(0, 10),
-                                content: '', year: '', issue: '', locationCity: '', locationDist: ''
-                            }
+                        console.error(`圖片 [${item.originalName}] 解析失敗:`, err);
+                        
+                        item.suggestions = {
+                            customText: item.originalName.replace(/\.[^/.]+$/, "").substring(0, 10),
+                            content: '', year: '', issue: '', locationCity: '', locationDist: ''
                         };
+
+                        // 💡 如果發現是被限速了 (包含 Quota 字眼)，跳出一次溫馨警告，並停止後續的 AI 請求
+                        if (err.message.toLowerCase().includes('quota') || err.message.toLowerCase().includes('429')) {
+                            alert(`🚨 觸發了 Google API 的每分鐘 20 張額度保護！\n您只需等待約 15 秒即可重新使用 AI。\n\n本次剩下的照片已暫停 AI 解析，系統會先以「原檔名」帶入，您依然可以手動編輯後確認收錄。`);
+                            
+                            // 將剩下的狀態都改為未解析原名，避免卡在「解析中」
+                            for (let j = i + 1; j < state.uploadBatch.length; j++) {
+                                state.uploadBatch[j].suggestions.customText = state.uploadBatch[j].originalName.replace(/\.[^/.]+$/, "").substring(0, 10);
+                            }
+                            break; // 提早結束 AI 解析迴圈
+                        }
                     }
-                }));
+                    
+                    // 每解析完一張就更新一次畫面 (使用者能看到進度感)
+                    updateModals();
+
+                    // 強制休息 2 秒鐘
+                    if (i < state.uploadBatch.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                    }
+                }
 
                 state.batchStatus = 'review'; 
                 updateModals();
